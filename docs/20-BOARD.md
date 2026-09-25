@@ -24,6 +24,7 @@ the subagent registry and `pgrep -af "vites[t]"` before acting on it.
 | 3 refine + whole width + dark mode (ledger row 9) | `ae50274` / `21a08e9` | Full gate exit 0 (12 files / 38 tests), log `.gate-logs/cos-verify-ae50274.log`. Own injection (in the owners' two UI asks, not the writer's arms): pre-paint theme default `'dark'`→`'light'`, sha 04bb47be→c836ea74 → theme-startup pin RED, restored 04bb47be. Republished: public JS sha `4d40f82a…` == local dist. |
 | 4 refinement chat (ledger row 12) | `c819d37` / `52da43e` | Full gate exit 0 (15 files / 61 tests), log `.gate-logs/cos-verify-c819d37.log`. Own injection (the no-fallback rule, distinct from the writer's memory arm): image-model fallback injected into `chatBlockReason`, sha 53dd4a12→92629bda → pin `an empty refinement pick disables Send … falls back to NOTHING` RED, restored 53dd4a12. **Slice 4 is LIVE** (its build wrote through the `~/apps/imager` symlink; served JS sha `10b85f36…` == local dist).
 | fix encode bug (ledger rows 14-15) | `ef1a5b0` | Full gate exit 0 (16 files / 67 tests), log `.gate-logs/cos-verify-ef1a5b0.log`. Own real-Chrome reproduction: OffscreenCanvas `toDataURL` = undefined, old call threw the owner's exact TypeError, `convertToBlob` produced a real 1024×512 PNG from 2000×1000. LIVE: public JS sha `1a19eec0…` == local dist. |
+| base image in chat (ledger row 16) | `baa4a9e` | Full gate exit 0 (16 files / 72 tests, `.gate-logs/chat-base-image2.log`); a first run was RED on **eslint only** (an `any` from `expect.stringContaining` in a new test) and was fixed forward before any push. Own injection: the original `content: text` branch restored, sha 15bee9d5→a036c9bc → 3 pins RED, restored 15bee9d5. LIVE: public JS sha `a7c49957…` == local dist (a first public read showed a transient stale-edge hash; re-read matched). |
 ## In flight
 None.
 
@@ -35,6 +36,8 @@ None.
 None. (Auto-routers stay — ledger row 7.)
 
 ## Known debt / notes
+- A CDN read can be STALE mid-deploy: one public fetch returned a hash that did not match `dist` while the size did; the next fetch matched. Re-read before diagnosing a deploy problem (do not loop).
+- Slice 3 style: `expect.stringContaining` in a test trips `@typescript-eslint/no-unsafe-assignment` (an `any`); assert explicitly.
 - A browser-only API behind a jsdom stand-in can ship broken (ledger rows 14/15): doubles must mirror the real method name/signature/async-ness, and such an API needs a REAL-BROWSER pin. Dispatcher error logged: a `pkill`-style pattern matched its own shell and killed the command (the same self-match class as the gate probe, ledger row 6) — kill by PID from a PID list captured in an earlier call.
 - DISPATCHER ERROR (2026-09-25, slice-11 change): an injection's `trap` restored `src/features/generate/useImagePanel.ts` **from HEAD** while that slice was UNCOMMITTED, destroying the change; it was reapplied by hand and re-gated (40/40). The injected pin DID fire correctly (hash 768594f4→54904ace, RED). Lesson: while a slice is uncommitted, restore from an out-of-tree copy (`.gate-logs/inject-backup/`), never from HEAD.
 - **A build publishes** (ledger row 13): `~/apps/imager` symlinks `dist`, so ANY `pnpm build` writes the public site. Verify the served JS hash after a build.
