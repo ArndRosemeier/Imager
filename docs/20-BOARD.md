@@ -29,7 +29,7 @@ None.
 6. Slice 6 — hardening + publish via `apps-publish`.
 
 ## Open owner fork
-- Exclude `openrouter/auto` + `openrouter/auto-beta` (they choose the model themselves) from one or both pickers? Awaiting owner.
+None. (Auto-routers stay — ledger row 7.)
 
 ## Known debt / notes
 - Slice 2 UNVERIFIED without a key: the live `POST /images` response shape (fixture-based only); a response missing `media_type` now throws rather than guessing.
