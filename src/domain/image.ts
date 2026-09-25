@@ -38,16 +38,26 @@ export type StoredImage = z.infer<typeof storedImageSchema>;
  */
 export const UPLOADED_IMAGE_MODEL = 'uploaded file';
 
-export const RUN_KINDS = ['generate', 'refine'] as const;
+/**
+ * Which request path produced a run. `generate` = text-to-image, `refine` =
+ * the Images API's `input_references` path, `chat-refine` = one turn of the
+ * multi-turn chat-completion path with image output (`src/llm/chat.ts`). The
+ * third value exists because the paths are different endpoints with different
+ * request shapes, and the run log must name which one spent the money.
+ */
+export const RUN_KINDS = ['generate', 'refine', 'chat-refine'] as const;
 export type RunKind = (typeof RUN_KINDS)[number];
 
 export const runSchema = z.strictObject({
   id: z.string().min(1),
-  /** Which seam path produced this run (slice 3 refines an input image). */
+  /** Which seam path produced this run. */
   kind: z.enum(RUN_KINDS),
   prompt: z.string(),
   model: z.string().min(1),
-  /** `StoredImage` ids sent as `input_references`; empty for a generate run. */
+  /**
+   * `StoredImage` ids sent to the model as references: `input_references` on
+   * the Images API path, sent-back assistant images on the chat path.
+   */
   inputImageIds: z.array(z.string().min(1)),
   requestedCount: z.number().int().positive(),
   receivedCount: z.number().int().nonnegative(),

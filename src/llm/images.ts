@@ -10,12 +10,14 @@
  */
 import { z } from 'zod';
 
-import { fetchWithRetries, openRouterHeaders, readJson } from '@/llm/client';
+import {
+  IMAGE_RENDER_HEADERS_TIMEOUT_MS,
+  fetchWithRetries,
+  openRouterHeaders,
+  readJson,
+} from '@/llm/client';
 import { MissingApiKeyError, OpenRouterError, parseOpenRouterErrorEnvelope } from '@/llm/errors';
 import { bytesFromBase64 } from '@/lib/base64';
-
-/** Image generation is not streamed: headers arrive only once rendered. */
-export const IMAGE_HEADERS_TIMEOUT_MS = 5 * 60 * 1000;
 
 const imagesResponseSchema = z.looseObject({
   data: z
@@ -36,6 +38,21 @@ const imagesResponseSchema = z.looseObject({
  */
 export interface ReferenceInput {
   dataUrl: string;
+}
+
+/**
+ * ONE image-part body, shared by every OpenRouter path that carries an image:
+ * the Images API's `input_references` entries and the chat path's
+ * `images: [{ image_url: { url } }]` history entries (`ChatAssistantImages`,
+ * `src/llm/chat.ts`). The literal lives HERE so a second consumer cannot
+ * assemble a differently-shaped part (pin:
+ * `tests/architecture/one-fetch.test.ts`).
+ */
+export function imageUrlPart(dataUrl: string): {
+  type: 'image_url';
+  image_url: { url: string };
+} {
+  return { type: 'image_url', image_url: { url: dataUrl } };
 }
 
 export interface GenerateRequest {
@@ -86,17 +103,12 @@ export async function generateImages(req: GenerateRequest): Promise<GeneratedIma
         ...(req.aspectRatio === undefined ? {} : { aspect_ratio: req.aspectRatio }),
         ...(references.length === 0
           ? {}
-          : {
-              input_references: references.map((reference) => ({
-                type: 'image_url',
-                image_url: { url: reference.dataUrl },
-              })),
-            }),
+          : { input_references: references.map((reference) => imageUrlPart(reference.dataUrl)) }),
       }),
       ...(req.signal === undefined ? {} : { signal: req.signal }),
     },
     req.retryBackoffs,
-    IMAGE_HEADERS_TIMEOUT_MS,
+    IMAGE_RENDER_HEADERS_TIMEOUT_MS,
   );
   const body: unknown = await readJson(response, z.unknown());
   // A 200 can still carry the error envelope — the same typed error as HTTP.

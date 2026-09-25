@@ -17,6 +17,14 @@ export const DEFAULT_RETRY_BACKOFFS_MS: readonly number[] = [2_000, 8_000];
 /** A request whose response headers never arrive is aborted loudly. */
 export const DEFAULT_HEADERS_TIMEOUT_MS = 60_000;
 
+/**
+ * A request that must RENDER an image before it can answer returns its headers
+ * only once the image is ready — the Images API (`POST /images`) and the chat
+ * path with image output (`POST /chat/completions`) both take it. The value
+ * lives here, in the transport seam, so the two paths cannot drift.
+ */
+export const IMAGE_RENDER_HEADERS_TIMEOUT_MS = 5 * 60 * 1000;
+
 /** Upper bound for an honored Retry-After hint. */
 const MAX_RETRY_AFTER_MS = 30_000;
 

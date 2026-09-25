@@ -1,5 +1,6 @@
 import Dexie, { type EntityTable } from 'dexie';
 
+import type { Conversation } from '@/domain/chat';
 import type { Run, StoredImage } from '@/domain/image';
 import type { Settings } from '@/domain/settings';
 
@@ -13,6 +14,7 @@ export class ImagerDb extends Dexie {
   settings!: EntityTable<SettingsRow, 'id'>;
   images!: EntityTable<StoredImage, 'id'>;
   runs!: EntityTable<Run, 'id'>;
+  conversations!: EntityTable<Conversation, 'id'>;
 
   constructor(name = 'imager') {
     super(name);
@@ -24,6 +26,11 @@ export class ImagerDb extends Dexie {
     // declared anyway so the data-shape change is visible here, next to the
     // indexes that did not change.
     this.version(3).stores({ images: 'id, createdAt, runId', runs: 'id, createdAt' });
+    // v4 (slice 4): the chat path's conversations. Only the NEW table is
+    // declared; Dexie carries the v1–v3 stores forward, so the bump adds a
+    // table and moves nothing (pin: tests/db/migration.test.ts seeds a v1
+    // settings row and v3 image/run rows, then opens at v4 and reads them).
+    this.version(4).stores({ conversations: 'id, updatedAt' });
   }
 }
 

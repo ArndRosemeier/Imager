@@ -2,11 +2,12 @@ import { useState } from 'react';
 import { Toaster } from 'sonner';
 
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { ChatArea } from '@/features/chat/ChatArea';
 import { GenerateArea } from '@/features/generate/GenerateArea';
 import { SettingsPanel } from '@/features/settings/SettingsPanel';
 import { useTheme } from '@/lib/theme';
 
-const TABS = ['Generate', 'Settings'] as const;
+const TABS = ['Generate', 'Chat', 'Settings'] as const;
 type Tab = (typeof TABS)[number];
 
 /** In-app tabs, no router (static host has no history fallback). */
@@ -38,7 +39,13 @@ export function App({ initialTab = 'Generate' }: { initialTab?: Tab }): React.JS
           </button>
         ))}
       </nav>
-      {tab === 'Generate' ? <GenerateArea /> : <SettingsPanel />}
+      {tab === 'Generate' ? (
+        <GenerateArea />
+      ) : tab === 'Chat' ? (
+        <ChatArea />
+      ) : (
+        <SettingsPanel />
+      )}
       <Toaster richColors position="top-right" theme={theme} />
     </main>
   );

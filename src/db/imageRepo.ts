@@ -68,6 +68,45 @@ export interface UploadInput {
   fileName: string;
 }
 
+export interface GeneratedImageInput {
+  bytes: Uint8Array<ArrayBuffer>;
+  mimeType: string;
+}
+
+/**
+ * The rows for a model response's images — ONE place that turns decoded model
+ * output into `StoredImage` records, used by BOTH generation paths (the Images
+ * API `runGeneration` and the chat turn `runChatTurn`). Dimensions are decoded
+ * per image (a decode failure THROWS, rule 1); `createdAt` increments per index
+ * so the gallery's `createdAt` order matches the response order.
+ */
+export async function buildGeneratedImages(input: {
+  images: readonly GeneratedImageInput[];
+  prompt: string;
+  model: string;
+  runId: string;
+  createdAt: number;
+}): Promise<StoredImage[]> {
+  const stored: StoredImage[] = [];
+  for (const [index, image] of input.images.entries()) {
+    const size = await imageSize(new Blob([image.bytes], { type: image.mimeType }));
+    stored.push(
+      storedImageSchema.parse({
+        id: crypto.randomUUID(),
+        bytes: image.bytes,
+        mimeType: image.mimeType,
+        ...size,
+        prompt: input.prompt,
+        model: input.model,
+        source: 'generated',
+        createdAt: input.createdAt + index,
+        runId: input.runId,
+      }),
+    );
+  }
+  return stored;
+}
+
 /**
  * Stores an uploaded file as a `StoredImage` in the SAME table as generated
  * images, so it appears in the gallery and can be reused as a refinement

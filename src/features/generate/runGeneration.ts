@@ -1,4 +1,4 @@
-import { getImage, saveRun } from '@/db/imageRepo';
+import { buildGeneratedImages, getImage, saveRun } from '@/db/imageRepo';
 import { imageBlob, type Run, type RunKind, type StoredImage } from '@/domain/image';
 import {
   decodeImageBitmap,
@@ -8,7 +8,6 @@ import {
 } from '@/features/refine/reference';
 import { generateImages, type ReferenceInput } from '@/llm/images';
 import { errorMessage } from '@/lib/errors';
-import { imageSize } from '@/lib/imageSize';
 
 export interface GenerationInput {
   apiKey: string;
@@ -81,20 +80,13 @@ export async function runGeneration(
       inputReferences: references,
       signal: input.signal,
     });
-    const images: StoredImage[] = [];
-    for (const [i, img] of result.images.entries()) {
-      const size = await imageSize(new Blob([img.bytes], { type: img.mimeType }));
-      images.push({
-        id: crypto.randomUUID(),
-        ...img,
-        ...size,
-        prompt: input.prompt,
-        model: input.model,
-        source: 'generated',
-        createdAt: createdAt + i,
-        runId: id,
-      });
-    }
+    const images = await buildGeneratedImages({
+      images: result.images,
+      prompt: input.prompt,
+      model: input.model,
+      runId: id,
+      createdAt,
+    });
     const run: Run = {
       ...base,
       receivedCount: images.length,
