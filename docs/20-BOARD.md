@@ -27,9 +27,10 @@ None.
 6. Slice 6 — hardening + publish via `apps-publish`.
 
 ## Open owner fork
-- Refine-chat picker: restrict to image-in + image-out + text-out (11 models, recommended) vs all 55 image-in+out with a badge (as built). Awaiting owner.
+- Exclude `openrouter/auto` + `openrouter/auto-beta` (they choose the model themselves) from one or both pickers? Awaiting owner.
 
 ## Known debt / notes
+- DISPATCHER ERROR (2026-09-25): `5ef4865` was committed on a RED gate (exit 1, stale count in `tests/features/settings-panel.test.tsx`). The chained command appended the ledger row and committed without testing the gate's exit code. Fixed forward in the next commit (full gate exit 0, 14/14). Rule for this session: commit ONLY after reading `GATE GREEN — exit 0`, never in the same command as the gate. Also ran that ~4s re-gate in the foreground.
 - No fallback model (owner, ledger row 3).
 - `/models` needs `?output_modalities=all`; the plain endpoint hides 46 image models (measured, ledger row 2).
 - Per-model Images-API limits live at `/images/models` (n max, reference-image max) — slice 2/3 must read them, not guess.

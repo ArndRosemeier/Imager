@@ -29,8 +29,9 @@ it('shows "No model selected" for both pickers and filters by capability', async
   expect(within(image).getByText('No model selected')).toBeInTheDocument();
   expect(within(refine).getByText('No model selected')).toBeInTheDocument();
   expect(within(image).getAllByRole('option')).toHaveLength(9);
-  expect(within(refine).getAllByRole('option')).toHaveLength(7);
+  expect(within(refine).getAllByRole('option')).toHaveLength(4); // text-capable refiners only (ledger row 4)
   expect(within(refine).queryByText('recraft/recraft-v4.1-flash')).toBeNull();
+  expect(within(refine).queryByText('black-forest-labs/flux.2-pro')).toBeNull();
 
   const user = userEvent.setup();
   await user.type(within(image).getByRole('searchbox'), 'gemini');
