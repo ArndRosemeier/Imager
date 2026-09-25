@@ -133,7 +133,7 @@ if mkdir "$LOCK" 2>/dev/null; then
 else
   # Held. Stale = older than 30 minutes AND no suite process alive: a killed
   # run. Reap the STALE lock only; a live one refuses with exit 9.
-  if [ -n "$(find "$LOCK" -maxdepth 0 -mmin +30 2>/dev/null)" ] && ! pgrep -f "vites[t]" >/dev/null 2>&1; then
+  if [ -n "$(find "$LOCK" -maxdepth 0 -mmin +30 2>/dev/null)" ] && ! pgrep -f "^[^ ]*node[^ ]* .*vites[t]" >/dev/null 2>&1; then
     log "lock: STALE (older than 30 min, no suite alive) — removing and proceeding"
     rm -rf "$LOCK"
     if mkdir "$LOCK" 2>/dev/null; then
@@ -152,8 +152,8 @@ fi
 
 # Refuse while a FOREIGN suite (one that does not know our lock) runs — wait
 # for it, never reap it.
-if pgrep -f "vites[t]" >/dev/null 2>&1; then
-  foreign="$(pgrep -af "vites[t]")"
+if pgrep -f "^[^ ]*node[^ ]* .*vites[t]" >/dev/null 2>&1; then
+  foreign="$(pgrep -af "^[^ ]*node[^ ]* .*vites[t]")"
   log "foreign suite alive — VOID, exit 9 (wait and retry):"
   log "$foreign"
   exit 9
