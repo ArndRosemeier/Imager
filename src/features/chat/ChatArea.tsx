@@ -4,6 +4,7 @@ import { getConversation, listConversations } from '@/db/chatRepo';
 import { getImage, saveUploadedImage } from '@/db/imageRepo';
 import { conversationCost, type ChatMessage, type Conversation } from '@/domain/chat';
 import type { StoredImage } from '@/domain/image';
+import type { ChatAttachRequest } from '@/features/chat/attachRequest';
 import { runChatTurn } from '@/features/chat/runChatTurn';
 import { chatBlockReason, useChat } from '@/features/chat/useChat';
 import { IMAGE_ACCEPT } from '@/features/refine/reference';
@@ -121,7 +122,15 @@ function ConversationView({
  * generated image lands in the SAME gallery the other paths write to. In-app
  * tabs, no router (the static host has no history fallback).
  */
-export function ChatArea(): React.JSX.Element {
+export function ChatArea({
+  attachRequest,
+  onAttachConsumed,
+}: Readonly<{
+  /** A gallery image the lightbox asked to stage (docs/17 row 17), or undefined. */
+  attachRequest: ChatAttachRequest | undefined;
+  /** Called with the staged request's nonce so `App` can clear it (once). */
+  onAttachConsumed: (nonce: number) => void;
+}>): React.JSX.Element {
   const { state, error } = useChat();
   const [conversations, setConversations] = useState<Conversation[] | null>(null);
   const [open, setOpen] = useState<Conversation | null>(null);
@@ -133,6 +142,10 @@ export function ChatArea(): React.JSX.Element {
    * chat", ledger row 16). They become the user message's own `imageIds`, so
    * they persist across later turns through the ordinary history replay —
    * attach once and keep refining from it.
+   *
+   * BOTH ways in — the composer's file control and the gallery lightbox's
+   * "Chat with this image" request (row 17) — stage into THIS state, and the
+   * chips below render it. ONE staging mechanism, never two.
    */
   const [attached, setAttached] = useState<StoredImage[]>([]);
   const [attachError, setAttachError] = useState<string | null>(null);
@@ -177,6 +190,41 @@ export function ChatArea(): React.JSX.Element {
       cancelled = true;
     };
   }, [openId, version]);
+
+  useEffect(() => {
+    if (attachRequest === undefined) return;
+    let cancelled = false;
+    // The image is an ordinary gallery row, so staging it is a Dexie read —
+    // NO copy, NO re-upload and NO request (docs/17 row 17).
+    getImage(attachRequest.imageId)
+      .then(
+        (image) => {
+          if (cancelled) return;
+          if (image === undefined) {
+            // The row is gone: say so rather than stage nothing silently (rule
+            // 1). The request is still consumed below — it is not retried.
+            setAttachError('That gallery image is no longer available to attach.');
+            return;
+          }
+          setAttached((prev) =>
+            prev.some((row) => row.id === image.id) ? prev : [...prev, image],
+          );
+        },
+        (loadFailure: unknown) => {
+          if (cancelled) return;
+          setAttachError(errorMessage(loadFailure));
+          toastError('Could not attach that image', loadFailure);
+        },
+      )
+      .finally(() => {
+        // CONSUMED once, whatever happened: `App` clears the request, so
+        // re-mounting this tab can never re-attach a stale one.
+        if (!cancelled) onAttachConsumed(attachRequest.nonce);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [attachRequest, onAttachConsumed]);
 
   // Newest turn at the bottom, kept in view. Guarded with a runtime check:
   // jsdom (the tests' DOM) implements no `scrollIntoView`.

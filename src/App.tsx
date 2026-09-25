@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { Toaster } from 'sonner';
 
 import { ThemeToggle } from '@/components/ThemeToggle';
+import type { ChatAttachRequest } from '@/features/chat/attachRequest';
 import { ChatArea } from '@/features/chat/ChatArea';
 import { GenerateArea } from '@/features/generate/GenerateArea';
 import { SettingsPanel } from '@/features/settings/SettingsPanel';
@@ -13,6 +14,23 @@ type Tab = (typeof TABS)[number];
 /** In-app tabs, no router (static host has no history fallback). */
 export function App({ initialTab = 'Generate' }: { initialTab?: Tab }): React.JSX.Element {
   const [tab, setTab] = useState<Tab>(initialTab);
+  /**
+   * A one-shot "stage this gallery image in the chat composer" request
+   * (docs/17 row 17). It lives here because the tab does: the Gallery sits
+   * inside `GenerateArea` and the composer in `ChatArea`, and neither may own
+   * the other's state.
+   */
+  const [attachRequest, setAttachRequest] = useState<ChatAttachRequest | null>(null);
+  const attachNonce = useRef(0);
+  /**
+   * Stable identity is load-bearing: `ChatArea`'s consume effect depends on
+   * this callback, and an inline arrow would re-run the effect on every App
+   * render. Clearing (rather than a flag inside `ChatArea`) is what makes the
+   * request one-shot across a remount of the Chat tab.
+   */
+  const onAttachConsumed = useCallback((nonce: number) => {
+    setAttachRequest((current) => (current !== null && current.nonce === nonce ? null : current));
+  }, []);
   const theme = useTheme();
   return (
     <main className="min-h-screen w-full bg-canvas px-4 py-6 text-ink sm:px-6 lg:px-8">
@@ -40,9 +58,19 @@ export function App({ initialTab = 'Generate' }: { initialTab?: Tab }): React.JS
         ))}
       </nav>
       {tab === 'Generate' ? (
-        <GenerateArea />
+        <GenerateArea
+          onChat={(imageId) => {
+            // A new nonce per click: re-picking the SAME image is a new request.
+            attachNonce.current += 1;
+            setAttachRequest({ imageId, nonce: attachNonce.current });
+            setTab('Chat');
+          }}
+        />
       ) : tab === 'Chat' ? (
-        <ChatArea />
+        <ChatArea
+          attachRequest={attachRequest ?? undefined}
+          onAttachConsumed={onAttachConsumed}
+        />
       ) : (
         <SettingsPanel />
       )}

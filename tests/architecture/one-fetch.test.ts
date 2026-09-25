@@ -1,13 +1,7 @@
-import { readdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { readFileSync } from 'node:fs';
 import { expect, it } from 'vitest';
 
-function sourceFiles(dir: string): string[] {
-  return readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
-    const p = join(dir, e.name);
-    return e.isDirectory() ? sourceFiles(p) : /\.(ts|tsx)$/.test(p) ? [p] : [];
-  });
-}
+import { sourceFiles } from '../helpers';
 
 // Rule 4: ONE transport seam. A second `fetch(` in src/ is a second client.
 it('exactly one fetch( in src/, inside the client seam', () => {

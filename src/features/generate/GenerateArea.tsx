@@ -14,8 +14,17 @@ type Mode = (typeof MODES)[number];
  * refine form must agree on them — a panel-local copy could drift.
  *
  * It is a tablist, not a router: the static host has no history fallback.
+ *
+ * The lightbox's "Chat with this image" does NOT live here: it crosses into the
+ * Chat tab, so the request is owned by `App`, which owns the tab (row 17). This
+ * component only forwards the callback.
  */
-export function GenerateArea(): React.JSX.Element {
+export function GenerateArea({
+  onChat,
+}: Readonly<{
+  /** Present → the gallery lightbox offers "Chat with this image" (row 17). */
+  onChat?: ((imageId: string) => void) | undefined;
+}>): React.JSX.Element {
   const [mode, setMode] = useState<Mode>('Create');
   const [refineSourceId, setRefineSourceId] = useState<string | null>(null);
   const [galleryVersion, setGalleryVersion] = useState(0);
@@ -56,6 +65,7 @@ export function GenerateArea(): React.JSX.Element {
             setRefineSourceId(imageId);
             setMode('Refine');
           }}
+          onChat={onChat}
         />
       </div>
     </div>
