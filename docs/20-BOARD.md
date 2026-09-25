@@ -22,19 +22,21 @@ the subagent registry and `pgrep -af "vites[t]"` before acting on it.
 
 | 2 generate + gallery (ledger row 5) | `673e805` | Full gate exit 0 (9 files / 23 tests), log `.gate-logs/cos-verify-673e805.log`. Own injection (distinct from writer's envelope arm): count cap `maxCount = 10`, sha 90a88da4→299436f7 → pin `count never exceeds the model's published n max` RED (1 failed / 23), restored sha 90a88da4. Gate self-match bug fixed alongside (ledger row 6). |
 | 3 refine + whole width + dark mode (ledger row 9) | `ae50274` / `21a08e9` | Full gate exit 0 (12 files / 38 tests), log `.gate-logs/cos-verify-ae50274.log`. Own injection (in the owners' two UI asks, not the writer's arms): pre-paint theme default `'dark'`→`'light'`, sha 04bb47be→c836ea74 → theme-startup pin RED, restored 04bb47be. Republished: public JS sha `4d40f82a…` == local dist. |
+| 4 refinement chat (ledger row 12) | `c819d37` / `52da43e` | Full gate exit 0 (15 files / 61 tests), log `.gate-logs/cos-verify-c819d37.log`. Own injection (the no-fallback rule, distinct from the writer's memory arm): image-model fallback injected into `chatBlockReason`, sha 53dd4a12→92629bda → pin `an empty refinement pick disables Send … falls back to NOTHING` RED, restored 53dd4a12. **Slice 4 is LIVE** (its build wrote through the `~/apps/imager` symlink; served JS sha `10b85f36…` == local dist).
 ## In flight
 None.
 
 ## Queue (plan: owner-approved 2026-09-25)
-3. Slice 4 — **chat refinement** (multi-turn chat, image output, only for capable models).
-4. Slice 5 — library/run log/cost/export.
-5. Slice 6 — hardening (error/empty-state pass).
+2. Slice 5 — library/run log/cost/export.
+3. Slice 6 — hardening (error/empty-state pass) + README.
 
 ## Open owner fork
 None. (Auto-routers stay — ledger row 7.)
 
 ## Known debt / notes
 - DISPATCHER ERROR (2026-09-25, slice-11 change): an injection's `trap` restored `src/features/generate/useImagePanel.ts` **from HEAD** while that slice was UNCOMMITTED, destroying the change; it was reapplied by hand and re-gated (40/40). The injected pin DID fire correctly (hash 768594f4→54904ace, RED). Lesson: while a slice is uncommitted, restore from an out-of-tree copy (`.gate-logs/inject-backup/`), never from HEAD.
+- **A build publishes** (ledger row 13): `~/apps/imager` symlinks `dist`, so ANY `pnpm build` writes the public site. Verify the served JS hash after a build.
+- Whole-app UNVERIFIED against the live service (no key yet): `/images` + `input_references`, chat `modalities`/assistant `images`, `/key`.
 - Slice 2 UNVERIFIED without a key: the live `POST /images` response shape (fixture-based only); a response missing `media_type` now throws rather than guessing.
 - Owner said publish AFTER slice 2 — ask before publishing.
 - DISPATCHER ERROR (2026-09-25): `5ef4865` was committed on a RED gate (exit 1, stale count in `tests/features/settings-panel.test.tsx`). The chained command appended the ledger row and committed without testing the gate's exit code. Fixed forward in the next commit (full gate exit 0, 14/14). Rule for this session: commit ONLY after reading `GATE GREEN — exit 0`, never in the same command as the gate. Also ran that ~4s re-gate in the foreground.
