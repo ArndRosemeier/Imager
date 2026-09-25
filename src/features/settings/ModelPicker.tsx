@@ -3,7 +3,6 @@ import { useId, useMemo, useState } from 'react';
 import {
   acceptsImageInput,
   canRefineViaChat,
-  producesTextToo,
   type OpenRouterModel,
 } from '@/llm/models';
 
@@ -29,7 +28,7 @@ function badges(model: OpenRouterModel): string[] {
   const out = ['image out'];
   if (acceptsImageInput(model)) out.push('image in');
   if (canRefineViaChat(model))
-    out.push(producesTextToo(model) ? 'chat refine (text+image)' : 'chat refine (image only)');
+    out.push('chat refine');
   return out;
 }
 

@@ -65,15 +65,13 @@ export function acceptsImageInput(model: OpenRouterModel): boolean {
 }
 
 /**
- * Input includes image AND output includes image → the multi-turn
- * chat-refinement path. NOTE (measured): 55 of 57 image-out models pass this,
- * including Images-API-only models such as flux whose output is image-only;
- * whether those answer `/chat/completions` with `modalities` is UNVERIFIED
- * (needs a key). The stricter chat signal — output also includes text — is
- * exposed as `producesTextToo` for the picker badge, not used as a filter.
+ * The multi-turn chat-refinement path: image in, image out AND text out.
+ * Owner decision (ledger row 4): only models that also answer with text are
+ * refinement-chat models — image-only models (flux, gpt-image, seedream…)
+ * stay available for the initial generation through the image picker.
  */
 export function canRefineViaChat(model: OpenRouterModel): boolean {
-  return acceptsImageInput(model) && canGenerateImages(model);
+  return acceptsImageInput(model) && canGenerateImages(model) && producesTextToo(model);
 }
 
 /** Output includes text as well as image (the chat-image models). */

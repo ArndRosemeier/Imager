@@ -37,14 +37,12 @@ it('classifies the real fixture entries', () => {
     'openrouter/auto',
     'recraft/recraft-v4.1-flash',
   ]);
-  // Text-only-input image models are generation-only, never chat refiners.
+  // Chat refiners need image in, image out AND text out (ledger row 4):
+  // image-only models (flux, seedream, gpt-image) are generation-only.
   expect(ids(canRefineViaChat)).toEqual([
-    'black-forest-labs/flux.2-pro',
-    'bytedance-seed/seedream-4.5',
     'google/gemini-2.5-flash-image',
     'google/gemini-3-pro-image-preview',
     'openai/gpt-5-image-mini',
-    'openai/gpt-image-1',
     'openrouter/auto',
   ]);
   // Vision chat models accept images but cannot produce one.
