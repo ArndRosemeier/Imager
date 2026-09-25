@@ -8,8 +8,10 @@ the subagent registry and `pgrep -af "vites[t]"` before acting on it.
   2026-09-25 on the owner's instruction; HTTPS via the host-global credential
   store). Branch `main`. **A push here does NOT deploy** — no workflows exist in
   this repo; publishing is the separate `apps-publish` step, still unscoped.
-- Not published. Target when scoped: `https://apps.futuremagic.de/imager/` via
-  skill `apps-publish` (`base: '/imager/'` already set).
+- **PUBLISHED** `https://apps.futuremagic.de/imager/` (ledger row 8) — symlink
+  `~/apps/imager` → `~/projects/Imager/dist`, so a rebuild is live immediately.
+  Verified: local 200 + public 200, public JS sha == local dist sha. Republish
+  after a change = rebuild + confirm the new asset hash is served.
 - Session goal: created and paused per the chief-of-staff contract; never touched again.
 
 ## Landed (verified by CoS)
@@ -26,7 +28,7 @@ None.
 3. Slice 3 — Images-API refinement (`input_references`, upload-as-seed, variants).
 4. Slice 4 — **chat refinement** (multi-turn chat, image output, only for capable models).
 5. Slice 5 — library/run log/cost/export.
-6. Slice 6 — hardening + publish via `apps-publish`.
+6. Slice 6 — hardening (error/empty-state pass, README for the live app).
 
 ## Open owner fork
 None. (Auto-routers stay — ledger row 7.)
