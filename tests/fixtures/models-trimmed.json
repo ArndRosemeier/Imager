@@ -1,0 +1,959 @@
+{
+  "data": [
+    {
+      "id": "google/gemini-2.5-flash-image",
+      "canonical_slug": "google/gemini-2.5-flash-image",
+      "hugging_face_id": "",
+      "name": "Google: Nano Banana (Gemini 2.5 Flash Image)",
+      "created": 1759870431,
+      "description": "Gemini 2.5 Flash Image, a.k.a. \"Nano Banana,\" is now generally available. It is a state of the art image generation model with contextual understanding. It is capable of image generation,...",
+      "context_length": 32768,
+      "architecture": {
+        "modality": "text+image->text+image",
+        "input_modalities": ["image", "text"],
+        "output_modalities": ["image", "text"],
+        "tokenizer": "Gemini",
+        "instruct_type": null
+      },
+      "pricing": {
+        "prompt": "0.0000003",
+        "completion": "0.0000025",
+        "image": "0.0000003",
+        "image_output": "0.00003",
+        "audio": "0.000001",
+        "input_audio_cache": "0.0000001",
+        "web_search": "0.014",
+        "internal_reasoning": "0.0000025",
+        "input_cache_read": "0.00000003",
+        "input_cache_write": "0.0000000833333333333333"
+      },
+      "top_provider": {
+        "context_length": 32768,
+        "max_completion_tokens": 8192,
+        "is_moderated": false
+      },
+      "per_request_limits": null,
+      "supported_parameters": [
+        "max_tokens",
+        "response_format",
+        "seed",
+        "stop",
+        "structured_outputs",
+        "temperature",
+        "top_p"
+      ],
+      "default_parameters": {
+        "temperature": null,
+        "top_p": null,
+        "frequency_penalty": null
+      },
+      "supported_voices": null,
+      "knowledge_cutoff": "2025-01-31",
+      "expiration_date": null,
+      "links": {
+        "details": "/api/v1/models/google/gemini-2.5-flash-image/endpoints"
+      },
+      "benchmarks": {
+        "design_arena": [
+          {
+            "arena": "models",
+            "category": "graphicdesign",
+            "elo": 1168,
+            "win_rate": 56.9,
+            "rank": 10
+          },
+          {
+            "arena": "models",
+            "category": "image",
+            "elo": 1189,
+            "win_rate": 55.6,
+            "rank": 10
+          },
+          {
+            "arena": "models",
+            "category": "logo",
+            "elo": 1169,
+            "win_rate": 51.4,
+            "rank": 11
+          }
+        ]
+      }
+    },
+    {
+      "id": "google/gemini-3-pro-image-preview",
+      "canonical_slug": "google/gemini-3-pro-image-preview-20251120",
+      "hugging_face_id": "",
+      "name": "Google: Nano Banana Pro (Gemini 3 Pro Image Preview)",
+      "created": 1763653797,
+      "description": "Nano Banana Pro is Google’s most advanced image-generation and editing model, built on Gemini 3 Pro. It extends the original Nano Banana with significantly improved multimodal reasoning, real-world grounding, and...",
+      "context_length": 65536,
+      "architecture": {
+        "modality": "text+image->text+image",
+        "input_modalities": ["image", "text"],
+        "output_modalities": ["image", "text"],
+        "tokenizer": "Gemini",
+        "instruct_type": null
+      },
+      "pricing": {
+        "prompt": "0.000002",
+        "completion": "0.000012",
+        "image": "0.000002",
+        "image_output": "0.00012",
+        "audio": "0.000002",
+        "input_audio_cache": "0.0000002",
+        "web_search": "0.014",
+        "internal_reasoning": "0.000012",
+        "input_cache_read": "0.0000002",
+        "input_cache_write": "0.000000375"
+      },
+      "top_provider": {
+        "context_length": 65536,
+        "max_completion_tokens": 32768,
+        "is_moderated": false
+      },
+      "per_request_limits": null,
+      "supported_parameters": [
+        "include_reasoning",
+        "max_tokens",
+        "reasoning",
+        "response_format",
+        "seed",
+        "stop",
+        "structured_outputs",
+        "temperature",
+        "top_p"
+      ],
+      "default_parameters": {
+        "temperature": null,
+        "top_p": null,
+        "frequency_penalty": null
+      },
+      "supported_voices": null,
+      "knowledge_cutoff": null,
+      "expiration_date": null,
+      "links": {
+        "details": "/api/v1/models/google/gemini-3-pro-image-preview-20251120/endpoints"
+      },
+      "benchmarks": {
+        "design_arena": [
+          {
+            "arena": "models",
+            "category": "graphicdesign",
+            "elo": 1251,
+            "win_rate": 65.8,
+            "rank": 5
+          },
+          {
+            "arena": "models",
+            "category": "image",
+            "elo": 1246,
+            "win_rate": 62.1,
+            "rank": 5
+          },
+          {
+            "arena": "models",
+            "category": "logo",
+            "elo": 1241,
+            "win_rate": 61,
+            "rank": 6
+          },
+          {
+            "arena": "models",
+            "category": "imageediting",
+            "elo": 1254,
+            "win_rate": 66,
+            "rank": 3
+          }
+        ]
+      },
+      "reasoning": {
+        "mandatory": true
+      }
+    },
+    {
+      "id": "openai/gpt-5-image-mini",
+      "canonical_slug": "openai/gpt-5-image-mini",
+      "hugging_face_id": "",
+      "name": "OpenAI: GPT-5 Image Mini",
+      "created": 1760624583,
+      "description": "GPT-5 Image Mini combines OpenAI's advanced language capabilities, powered by [GPT-5 Mini](https://openrouter.ai/openai/gpt-5-mini), with GPT Image 1 Mini for efficient image generation. This natively multimodal model features superior instruction following, text...",
+      "context_length": 400000,
+      "architecture": {
+        "modality": "text+image+file->text+image",
+        "input_modalities": ["file", "image", "text"],
+        "output_modalities": ["image", "text"],
+        "tokenizer": "GPT",
+        "instruct_type": null
+      },
+      "pricing": {
+        "prompt": "0.0000025",
+        "completion": "0.000002",
+        "image_output": "0.000008",
+        "web_search": "0.01",
+        "input_cache_read": "0.00000025"
+      },
+      "top_provider": {
+        "context_length": 400000,
+        "max_completion_tokens": 128000,
+        "is_moderated": true
+      },
+      "per_request_limits": null,
+      "supported_parameters": [
+        "frequency_penalty",
+        "include_reasoning",
+        "logit_bias",
+        "logprobs",
+        "max_tokens",
+        "presence_penalty",
+        "reasoning",
+        "response_format",
+        "seed",
+        "stop",
+        "structured_outputs",
+        "temperature",
+        "top_logprobs",
+        "top_p"
+      ],
+      "default_parameters": {
+        "temperature": null,
+        "top_p": null,
+        "frequency_penalty": null
+      },
+      "supported_voices": null,
+      "knowledge_cutoff": null,
+      "expiration_date": null,
+      "links": {
+        "details": "/api/v1/models/openai/gpt-5-image-mini/endpoints"
+      },
+      "benchmarks": {
+        "design_arena": [
+          {
+            "arena": "models",
+            "category": "graphicdesign",
+            "elo": 1166,
+            "win_rate": 47.7,
+            "rank": 11
+          },
+          {
+            "arena": "models",
+            "category": "image",
+            "elo": 1186,
+            "win_rate": 51,
+            "rank": 11
+          },
+          {
+            "arena": "models",
+            "category": "logo",
+            "elo": 1209,
+            "win_rate": 51.4,
+            "rank": 8
+          }
+        ]
+      },
+      "reasoning": {
+        "mandatory": true
+      }
+    },
+    {
+      "id": "openrouter/auto",
+      "canonical_slug": "openrouter/auto",
+      "hugging_face_id": null,
+      "name": "Auto Router",
+      "created": 1699401600,
+      "description": "The Auto Router automatically selects the best model for your prompt, powered by the wisdom of the market. It routes you based on what the OpenRouter community collectively spends on...",
+      "context_length": 2000000,
+      "architecture": {
+        "modality": "text+image+file+audio+video->text+image",
+        "input_modalities": ["text", "image", "audio", "file", "video"],
+        "output_modalities": ["text", "image"],
+        "tokenizer": "Router",
+        "instruct_type": null
+      },
+      "pricing": {
+        "prompt": "-1",
+        "completion": "-1"
+      },
+      "top_provider": {
+        "context_length": null,
+        "max_completion_tokens": null,
+        "is_moderated": false
+      },
+      "per_request_limits": null,
+      "supported_parameters": [
+        "frequency_penalty",
+        "include_reasoning",
+        "logit_bias",
+        "logprobs",
+        "max_tokens",
+        "min_p",
+        "prediction",
+        "presence_penalty",
+        "reasoning",
+        "reasoning_effort",
+        "repetition_penalty",
+        "response_format",
+        "seed",
+        "stop",
+        "structured_outputs",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_a",
+        "top_k",
+        "top_logprobs",
+        "top_p",
+        "web_search_options"
+      ],
+      "default_parameters": {},
+      "supported_voices": null,
+      "knowledge_cutoff": null,
+      "expiration_date": null,
+      "links": {
+        "details": "/api/v1/models/openrouter/auto/endpoints"
+      }
+    },
+    {
+      "id": "black-forest-labs/flux.2-pro",
+      "canonical_slug": "black-forest-labs/flux.2-pro",
+      "hugging_face_id": "",
+      "name": "Black Forest Labs: FLUX.2 Pro",
+      "created": 1764030274,
+      "description": "A high-end image generation and editing model focused on frontier-level visual quality and reliability. It delivers strong prompt adherence, stable lighting, sharp textures, and consistent character/style reproduction across multi-reference inputs....",
+      "context_length": 46864,
+      "architecture": {
+        "modality": "text+image->image",
+        "input_modalities": ["text", "image"],
+        "output_modalities": ["image"],
+        "tokenizer": "Other",
+        "instruct_type": null
+      },
+      "pricing": {
+        "prompt": "0",
+        "completion": "0",
+        "image_output": "0.00000732421875"
+      },
+      "top_provider": {
+        "context_length": 46864,
+        "max_completion_tokens": 42177,
+        "is_moderated": false
+      },
+      "per_request_limits": null,
+      "supported_parameters": ["seed"],
+      "default_parameters": {
+        "temperature": null,
+        "top_p": null,
+        "frequency_penalty": null
+      },
+      "supported_voices": null,
+      "knowledge_cutoff": null,
+      "expiration_date": null,
+      "links": {
+        "details": "/api/v1/models/black-forest-labs/flux.2-pro/endpoints"
+      },
+      "benchmarks": {
+        "design_arena": [
+          {
+            "arena": "models",
+            "category": "graphicdesign",
+            "elo": 1173,
+            "win_rate": 47.3,
+            "rank": 8
+          },
+          {
+            "arena": "models",
+            "category": "image",
+            "elo": 1198,
+            "win_rate": 49.1,
+            "rank": 8
+          },
+          {
+            "arena": "models",
+            "category": "logo",
+            "elo": 1193,
+            "win_rate": 48.8,
+            "rank": 10
+          },
+          {
+            "arena": "models",
+            "category": "imageediting",
+            "elo": 1137,
+            "win_rate": 47.3,
+            "rank": 6
+          }
+        ]
+      }
+    },
+    {
+      "id": "openai/gpt-image-1",
+      "canonical_slug": "openai/gpt-image-1",
+      "hugging_face_id": null,
+      "name": "OpenAI: GPT Image 1",
+      "created": 1782264713,
+      "description": "OpenAI's GPT Image 1 generates and edits images via the dedicated Images API. Features accurate text rendering, transparent backgrounds, and up to 16 reference images for edits.",
+      "context_length": 400000,
+      "architecture": {
+        "modality": "text+image->image",
+        "input_modalities": ["text", "image"],
+        "output_modalities": ["image"],
+        "tokenizer": "GPT",
+        "instruct_type": null
+      },
+      "pricing": {
+        "prompt": "0.00001",
+        "completion": "0.00001",
+        "image_output": "0.00004",
+        "web_search": "0.01",
+        "input_cache_read": "0.00000125"
+      },
+      "top_provider": {
+        "context_length": 400000,
+        "max_completion_tokens": 360000,
+        "is_moderated": true
+      },
+      "per_request_limits": null,
+      "supported_parameters": [
+        "frequency_penalty",
+        "logit_bias",
+        "logprobs",
+        "max_tokens",
+        "presence_penalty",
+        "response_format",
+        "seed",
+        "stop",
+        "structured_outputs",
+        "temperature",
+        "top_logprobs",
+        "top_p"
+      ],
+      "default_parameters": {},
+      "supported_voices": null,
+      "knowledge_cutoff": null,
+      "expiration_date": null,
+      "links": {
+        "details": "/api/v1/models/openai/gpt-image-1/endpoints"
+      },
+      "benchmarks": {
+        "design_arena": [
+          {
+            "arena": "models",
+            "category": "imageediting",
+            "elo": 1108,
+            "win_rate": 46.6,
+            "rank": 7
+          }
+        ]
+      }
+    },
+    {
+      "id": "bytedance-seed/seedream-4.5",
+      "canonical_slug": "bytedance-seed/seedream-4.5-20251203",
+      "hugging_face_id": "",
+      "name": "ByteDance Seed: Seedream 4.5",
+      "created": 1766519506,
+      "description": "Seedream 4.5 is the latest in-house image generation model developed by ByteDance. Compared with Seedream 4.0, it delivers comprehensive improvements, especially in editing consistency, including better preservation of subject details,...",
+      "context_length": 4096,
+      "architecture": {
+        "modality": "text+image->image",
+        "input_modalities": ["image", "text"],
+        "output_modalities": ["image"],
+        "tokenizer": "Other",
+        "instruct_type": null
+      },
+      "pricing": {
+        "prompt": "0",
+        "completion": "0",
+        "image": "0",
+        "image_token": "0.00000958083832335329",
+        "image_output": "0.00000958083832335329"
+      },
+      "top_provider": {
+        "context_length": 4096,
+        "max_completion_tokens": 3686,
+        "is_moderated": false
+      },
+      "per_request_limits": null,
+      "supported_parameters": ["frequency_penalty", "max_tokens", "temperature", "top_p"],
+      "default_parameters": {
+        "temperature": null,
+        "top_p": null,
+        "frequency_penalty": null
+      },
+      "supported_voices": null,
+      "knowledge_cutoff": null,
+      "expiration_date": null,
+      "links": {
+        "details": "/api/v1/models/bytedance-seed/seedream-4.5-20251203/endpoints"
+      }
+    },
+    {
+      "id": "recraft/recraft-v4.1-flash",
+      "canonical_slug": "recraft/recraft-v4.1-flash-20260923",
+      "hugging_face_id": null,
+      "name": "Recraft: Recraft V4.1 Flash",
+      "created": 1790177946,
+      "description": "Recraft V4.1 Flash is a text-to-image model from Recraft, the speed and cost tier of the V4.1 family. It generates ~1K raster images in about 1.5 seconds end to end,...",
+      "context_length": 65536,
+      "architecture": {
+        "modality": "text->image",
+        "input_modalities": ["text"],
+        "output_modalities": ["image"],
+        "tokenizer": "Other",
+        "instruct_type": null
+      },
+      "pricing": {
+        "prompt": "0",
+        "completion": "0",
+        "image_token": "0.00000167664670658683",
+        "image_output": "0.00000167664670658683"
+      },
+      "top_provider": {
+        "context_length": 65536,
+        "max_completion_tokens": 58982,
+        "is_moderated": false
+      },
+      "per_request_limits": null,
+      "supported_parameters": [],
+      "default_parameters": {},
+      "supported_voices": null,
+      "knowledge_cutoff": null,
+      "expiration_date": null,
+      "links": {
+        "details": "/api/v1/models/recraft/recraft-v4.1-flash-20260923/endpoints"
+      }
+    },
+    {
+      "id": "inclusionai/ming-image-0.1-design",
+      "canonical_slug": "inclusionai/ming-image-0.1-design-20260922",
+      "hugging_face_id": "inclusionAI/Ming-Image-0.1-Design",
+      "name": "inclusionAI: Ming Image 0.1 Design",
+      "created": 1790095711,
+      "description": "Ming Image 0.1 Design is a text-to-image model from inclusionAI aimed at graphic-design output, with an emphasis on legible text rendering inside the generated image. It generates from a prompt...",
+      "context_length": 0,
+      "architecture": {
+        "modality": "text->image",
+        "input_modalities": ["text"],
+        "output_modalities": ["image"],
+        "tokenizer": "Other",
+        "instruct_type": null
+      },
+      "pricing": {
+        "prompt": "0",
+        "completion": "0",
+        "image_token": "0",
+        "image_output": "0"
+      },
+      "top_provider": {
+        "context_length": 0,
+        "max_completion_tokens": 0,
+        "is_moderated": false
+      },
+      "per_request_limits": null,
+      "supported_parameters": [
+        "frequency_penalty",
+        "max_tokens",
+        "presence_penalty",
+        "repetition_penalty",
+        "seed",
+        "stop",
+        "temperature",
+        "top_k",
+        "top_p"
+      ],
+      "default_parameters": {},
+      "supported_voices": null,
+      "knowledge_cutoff": null,
+      "expiration_date": null,
+      "links": {
+        "details": "/api/v1/models/inclusionai/ming-image-0.1-design-20260922/endpoints"
+      }
+    },
+    {
+      "id": "anthropic/claude-sonnet-4",
+      "canonical_slug": "anthropic/claude-4-sonnet-20250522",
+      "hugging_face_id": "",
+      "name": "Anthropic: Claude Sonnet 4",
+      "created": 1747930371,
+      "description": "Claude Sonnet 4 significantly enhances the capabilities of its predecessor, Sonnet 3.7, excelling in both coding and reasoning tasks with improved precision and controllability. Achieving state-of-the-art performance on SWE-bench (72.7%),...",
+      "context_length": 200000,
+      "architecture": {
+        "modality": "text+image+file->text",
+        "input_modalities": ["image", "text", "file"],
+        "output_modalities": ["text"],
+        "tokenizer": "Claude",
+        "instruct_type": null
+      },
+      "pricing": {
+        "prompt": "0.000003",
+        "completion": "0.000015",
+        "web_search": "0.01",
+        "input_cache_read": "0.0000003",
+        "input_cache_write": "0.00000375",
+        "input_cache_write_1h": "0.000006",
+        "overrides": [
+          {
+            "min_prompt_tokens": 200000,
+            "prompt": "0.000006",
+            "completion": "0.0000225",
+            "input_cache_read": "0.0000006",
+            "input_cache_write": "0.0000075",
+            "input_cache_write_1h": "0.000012"
+          }
+        ]
+      },
+      "top_provider": {
+        "context_length": 200000,
+        "max_completion_tokens": 64000,
+        "is_moderated": true
+      },
+      "per_request_limits": null,
+      "supported_parameters": [
+        "include_reasoning",
+        "max_tokens",
+        "reasoning",
+        "stop",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_k",
+        "top_p"
+      ],
+      "default_parameters": {
+        "temperature": null,
+        "top_p": null,
+        "top_k": null,
+        "frequency_penalty": null,
+        "presence_penalty": null,
+        "repetition_penalty": null
+      },
+      "supported_voices": null,
+      "knowledge_cutoff": "2025-01-31",
+      "expiration_date": null,
+      "links": {
+        "details": "/api/v1/models/anthropic/claude-4-sonnet-20250522/endpoints"
+      },
+      "benchmarks": {
+        "design_arena": [
+          {
+            "arena": "models",
+            "category": "3d",
+            "elo": 1165,
+            "win_rate": 57.8,
+            "rank": 61
+          },
+          {
+            "arena": "models",
+            "category": "codecategories",
+            "elo": 1151,
+            "win_rate": 53.4,
+            "rank": 77
+          },
+          {
+            "arena": "models",
+            "category": "dataviz",
+            "elo": 1168,
+            "win_rate": 56.5,
+            "rank": 70
+          },
+          {
+            "arena": "models",
+            "category": "gamedev",
+            "elo": 1154,
+            "win_rate": 54.8,
+            "rank": 66
+          },
+          {
+            "arena": "models",
+            "category": "svg",
+            "elo": 1089,
+            "win_rate": 51.1,
+            "rank": 60
+          },
+          {
+            "arena": "models",
+            "category": "uicomponent",
+            "elo": 1142,
+            "win_rate": 57.9,
+            "rank": 75
+          },
+          {
+            "arena": "models",
+            "category": "website",
+            "elo": 1154,
+            "win_rate": 52.4,
+            "rank": 79
+          }
+        ],
+        "artificial_analysis": {
+          "intelligence_index": null,
+          "coding_index": 37.6,
+          "agentic_index": null
+        }
+      },
+      "reasoning": {
+        "mandatory": false
+      }
+    },
+    {
+      "id": "openai/gpt-4o",
+      "canonical_slug": "openai/gpt-4o",
+      "hugging_face_id": null,
+      "name": "OpenAI: GPT-4o",
+      "created": 1715558400,
+      "description": "GPT-4o (\"o\" for \"omni\") is OpenAI's latest AI model, supporting both text and image inputs with text outputs. It maintains the intelligence level of [GPT-4 Turbo](/models/openai/gpt-4-turbo) while being twice as...",
+      "context_length": 128000,
+      "architecture": {
+        "modality": "text+image+file->text",
+        "input_modalities": ["text", "image", "file"],
+        "output_modalities": ["text"],
+        "tokenizer": "GPT",
+        "instruct_type": null
+      },
+      "pricing": {
+        "prompt": "0.0000025",
+        "completion": "0.00001",
+        "input_cache_read": "0.00000125"
+      },
+      "top_provider": {
+        "context_length": 128000,
+        "max_completion_tokens": 16384,
+        "is_moderated": true
+      },
+      "per_request_limits": null,
+      "supported_parameters": [
+        "frequency_penalty",
+        "logit_bias",
+        "logprobs",
+        "max_completion_tokens",
+        "max_tokens",
+        "prediction",
+        "presence_penalty",
+        "response_format",
+        "seed",
+        "stop",
+        "structured_outputs",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_logprobs",
+        "top_p",
+        "web_search_options"
+      ],
+      "default_parameters": {},
+      "supported_voices": null,
+      "knowledge_cutoff": "2023-10-31",
+      "expiration_date": null,
+      "links": {
+        "details": "/api/v1/models/openai/gpt-4o/endpoints"
+      },
+      "benchmarks": {
+        "design_arena": [
+          {
+            "arena": "models",
+            "category": "3d",
+            "elo": 894,
+            "win_rate": 39.2,
+            "rank": 112
+          },
+          {
+            "arena": "models",
+            "category": "codecategories",
+            "elo": 870,
+            "win_rate": 34.8,
+            "rank": 124
+          },
+          {
+            "arena": "models",
+            "category": "dataviz",
+            "elo": 866,
+            "win_rate": 36,
+            "rank": 121
+          },
+          {
+            "arena": "models",
+            "category": "gamedev",
+            "elo": 922,
+            "win_rate": 42.3,
+            "rank": 120
+          },
+          {
+            "arena": "models",
+            "category": "uicomponent",
+            "elo": 899,
+            "win_rate": 38.1,
+            "rank": 118
+          },
+          {
+            "arena": "models",
+            "category": "website",
+            "elo": 839,
+            "win_rate": 31.5,
+            "rank": 130
+          }
+        ]
+      }
+    },
+    {
+      "id": "meta-llama/llama-3.3-70b-instruct",
+      "canonical_slug": "meta-llama/llama-3.3-70b-instruct",
+      "hugging_face_id": "meta-llama/Llama-3.3-70B-Instruct",
+      "name": "Meta: Llama 3.3 70B Instruct",
+      "created": 1733506137,
+      "description": "The Meta Llama 3.3 multilingual large language model (LLM) is a pretrained and instruction tuned generative model in 70B (text in/text out). The Llama 3.3 instruction tuned text only model...",
+      "context_length": 131072,
+      "architecture": {
+        "modality": "text->text",
+        "input_modalities": ["text"],
+        "output_modalities": ["text"],
+        "tokenizer": "Llama3",
+        "instruct_type": "llama3"
+      },
+      "pricing": {
+        "prompt": "0.0000001",
+        "completion": "0.00000032"
+      },
+      "top_provider": {
+        "context_length": 131072,
+        "max_completion_tokens": 16384,
+        "is_moderated": false
+      },
+      "per_request_limits": null,
+      "supported_parameters": [
+        "frequency_penalty",
+        "logit_bias",
+        "logprobs",
+        "max_tokens",
+        "min_p",
+        "presence_penalty",
+        "repetition_penalty",
+        "response_format",
+        "seed",
+        "stop",
+        "structured_outputs",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_k",
+        "top_logprobs",
+        "top_p"
+      ],
+      "default_parameters": {},
+      "supported_voices": null,
+      "knowledge_cutoff": "2023-12-31",
+      "expiration_date": null,
+      "links": {
+        "details": "/api/v1/models/meta-llama/llama-3.3-70b-instruct/endpoints"
+      },
+      "benchmarks": {
+        "design_arena": [],
+        "artificial_analysis": {
+          "intelligence_index": null,
+          "coding_index": 11.9,
+          "agentic_index": null
+        }
+      }
+    },
+    {
+      "id": "deepseek/deepseek-chat",
+      "canonical_slug": "deepseek/deepseek-chat-v3",
+      "hugging_face_id": "deepseek-ai/DeepSeek-V3",
+      "name": "DeepSeek: DeepSeek V3",
+      "created": 1735241320,
+      "description": "DeepSeek-V3 is the latest model from the DeepSeek team, building upon the instruction following and coding abilities of the previous versions. Pre-trained on nearly 15 trillion tokens, the reported evaluations...",
+      "context_length": 163840,
+      "architecture": {
+        "modality": "text->text",
+        "input_modalities": ["text"],
+        "output_modalities": ["text"],
+        "tokenizer": "DeepSeek",
+        "instruct_type": null
+      },
+      "pricing": {
+        "prompt": "0.00000032",
+        "completion": "0.00000089"
+      },
+      "top_provider": {
+        "context_length": 163840,
+        "max_completion_tokens": 16384,
+        "is_moderated": false
+      },
+      "per_request_limits": null,
+      "supported_parameters": [
+        "frequency_penalty",
+        "logit_bias",
+        "max_tokens",
+        "min_p",
+        "presence_penalty",
+        "repetition_penalty",
+        "response_format",
+        "seed",
+        "stop",
+        "structured_outputs",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_k",
+        "top_p"
+      ],
+      "default_parameters": {},
+      "supported_voices": null,
+      "knowledge_cutoff": "2024-07-31",
+      "expiration_date": null,
+      "links": {
+        "details": "/api/v1/models/deepseek/deepseek-chat-v3/endpoints"
+      },
+      "benchmarks": {
+        "design_arena": [
+          {
+            "arena": "models",
+            "category": "3d",
+            "elo": 1113,
+            "win_rate": 50.5,
+            "rank": 80
+          },
+          {
+            "arena": "models",
+            "category": "codecategories",
+            "elo": 1117,
+            "win_rate": 48.4,
+            "rank": 90
+          },
+          {
+            "arena": "models",
+            "category": "dataviz",
+            "elo": 1099,
+            "win_rate": 50,
+            "rank": 93
+          },
+          {
+            "arena": "models",
+            "category": "gamedev",
+            "elo": 1069,
+            "win_rate": 43.7,
+            "rank": 95
+          },
+          {
+            "arena": "models",
+            "category": "svg",
+            "elo": 987,
+            "win_rate": 38.8,
+            "rank": 84
+          },
+          {
+            "arena": "models",
+            "category": "uicomponent",
+            "elo": 1107,
+            "win_rate": 52.7,
+            "rank": 86
+          },
+          {
+            "arena": "models",
+            "category": "website",
+            "elo": 1128,
+            "win_rate": 48.5,
+            "rank": 89
+          }
+        ]
+      }
+    }
+  ]
+}

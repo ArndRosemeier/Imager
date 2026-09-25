@@ -2,36 +2,30 @@
 
 ## §1 Layer map (today)
 
-Slice 0 is an empty stage. The tree holds a placeholder only:
+- `src/App.tsx` — heading + in-app tab bar (Settings only) + `<Toaster>`.
+- `src/main.tsx` — mounts `App` inside `ErrorBoundary`; window `error` /
+  `unhandledrejection` → `toastError`. Throws if `#root` is missing.
+- `vite.config.ts` — `base: '/imager/'`, `@/*` alias, `test.maxWorkers` 2.
+- `scripts/gate.sh` — the ONE suite runner (pin `tests/architecture/one-gate.test.ts`).
 
-- `src/App.tsx` — renders the "Imager" heading + purpose line (pinned by
-  `tests/app/smoke.test.ts`: removing the heading goes red).
-- `src/main.tsx` — mounts `App` on `#root`, throws loudly if `#root` is
-  missing (no silent fallback, rule 1).
-- `src/index.css` — Tailwind v4 entry (`@import 'tailwindcss'`).
-- `vite.config.ts` — `base: '/imager/'` (future publish subpath; dev
-  unaffected), `@/*` alias, `test.maxWorkers` default 2 (the bound).
-- `scripts/gate.sh` — the ONE suite runner (pinned by
-  `tests/architecture/one-gate.test.ts`: a second `scripts/*.sh` goes red).
+## §2 Seams
 
-There are NO seams yet: no settings, no domain, no Dexie tables, no OpenRouter
-calls, no image code. The rows below are STUBS — seams slice 1+ will create,
-each naming its Campaigner donor file (absolute path, read-only reference —
-never edit Campaigner).
+| Seam | Lives | Pin | Donor (read-only) |
+|---|---|---|---|
+| OpenRouter transport (base URL, headers, retries 429/5xx, headers timeout, zod `readJson`) — the ONLY `fetch(` in `src/` | `src/llm/client.ts` | `tests/architecture/one-fetch.test.ts` | Campaigner `src/llm/openrouter.ts` |
+| OpenRouter typed errors + envelope parse | `src/llm/errors.ts` | `tests/llm/models.test.ts` | Campaigner `src/llm/openrouterErrors.ts` |
+| Model list (one session-cached `GET /models?output_modalities=all`) + capabilities `canGenerateImages` / `acceptsImageInput` / `canRefineViaChat` / `producesTextToo` — later slices ASK these, never guess from ids | `src/llm/models.ts` | `tests/llm/models.test.ts` (real fixture `tests/fixtures/models-trimmed.json`) | Campaigner `src/llm/modelCache.ts`, `listImageModels` |
+| Key test (`GET /key`) | `src/llm/key.ts` | `tests/features/settings-panel.test.tsx` | — |
+| Settings (domain schema, empty defaults, no model literal in `src/`) | `src/domain/settings.ts` | `tests/db/settings.test.ts`, `one-fetch.test.ts` | Campaigner `src/domain/settings.ts` |
+| Dexie DB (one class, versions here) + settings repo (corrupt row throws) | `src/db/db.ts`, `src/db/settingsRepo.ts` | `tests/db/settings.test.ts` | Campaigner `src/db/` |
+| Toast (the one notice surface) + error message helper | `src/lib/toast.ts`, `src/lib/errors.ts` | — | Campaigner `src/lib/toast.ts` |
+| Global error boundary | `src/components/ErrorBoundary.tsx` | — | — |
+| Settings UI (key, test, two searchable pickers) | `src/features/settings/` | `tests/features/settings-panel.test.tsx` | — |
 
-## §2 Seams (stub — slice 1+ creates these)
-
-| Seam | Will live | Donor in Campaigner |
-|---|---|---|
-| OpenRouter client (fetch, headers, timeout) | `src/llm/openrouter.ts` | `/home/administrator/projects/Campaigner/src/llm/openrouter.ts` |
-| OpenRouter error mapping (loud, user-visible) | `src/llm/openrouterErrors.ts` | `/home/administrator/projects/Campaigner/src/llm/openrouterErrors.ts` |
-| Image generation call (POST /images, webp, n-cap-to-1, 5-min timeout, fallback chain) | `src/llm/imageGen.ts` | `/home/administrator/projects/Campaigner/src/llm/imageGen.ts` |
-| Model fallback chain (user pick stays the authority — no pinned default) | `src/llm/modelFallback.ts` | `/home/administrator/projects/Campaigner/src/llm/modelFallback.ts` |
-| Model list cache | `src/llm/modelCache.ts` | `/home/administrator/projects/Campaigner/src/llm/modelCache.ts` |
-| Image domain type + zod schema | `src/domain/image.ts` | `/home/administrator/projects/Campaigner/src/domain/image.ts` |
-| Image Dexie repo | `src/db/imageRepo.ts` | `/home/administrator/projects/Campaigner/src/db/imageRepo.ts` |
-| Image UI (generate / refine surfaces, in-app tabs — no router: static host has no history fallback) | `src/features/images/` | `/home/administrator/projects/Campaigner/src/features/images/` |
-| Chat-refinement path (multi-turn, models that support image output) | TBD in slice 1+ | donor TBD — Campaigner's chat/LLM surfaces under `/home/administrator/projects/Campaigner/src/llm/` and `/home/administrator/projects/Campaigner/src/features/` |
+Stubs, not built yet: image generation (`POST /images`, donor
+Campaigner `src/llm/imageGen.ts`), image domain/repo (`src/domain/image.ts`,
+`src/db/imageRepo.ts`), image UI, chat-refinement path (chat completions with
+`modalities`), fallback chain (owner has NOT asked — queue question).
 
 ## §3 Gotchas
 
@@ -41,6 +35,8 @@ never edit Campaigner).
 - Asset base MUST stay `/imager/` — `dist/index.html` must reference
   `/imager/`-based assets, verified by build proof each slice that touches
   config.
+- Bare `GET /models` lists TEXT-output models only; image-only models
+  (flux, gpt-image, …) need `?output_modalities=all` (measured, docs/17 row 2).
 - Model choice is ALWAYS the user's explicit pick. Porting the donor's
   fallback chain must not smuggle in a pinned default.
 
