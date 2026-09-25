@@ -4,8 +4,10 @@ A record is prose about state: verify it against `git log`, `git worktree list`,
 the subagent registry and `pgrep -af "vites[t]"` before acting on it.
 
 ## Standing facts
-- Local repo only, branch `main`, **no remote** (owner provides the GitHub repo
-  later; do not create one, do not push).
+- Remote: `origin` = `https://github.com/ArndRosemeier/Imager.git` (added
+  2026-09-25 on the owner's instruction; HTTPS via the host-global credential
+  store). Branch `main`. **A push here does NOT deploy** — no workflows exist in
+  this repo; publishing is the separate `apps-publish` step, still unscoped.
 - Not published. Target when scoped: `https://apps.futuremagic.de/imager/` via
   skill `apps-publish` (`base: '/imager/'` already set).
 - Session goal: created and paused per the chief-of-staff contract; never touched again.
