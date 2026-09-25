@@ -4,10 +4,10 @@ Standalone local-first web app: generate images with OpenRouter and refine
 them — via the Images API (`input_references`) and, for models that support
 it, via a multi-turn chat-completion path with image output. Vite + React +
 TS strict, Tailwind, Dexie, zod, OpenRouter — no backend. Model choice is
-ALWAYS the user's explicit pick (no pinned default). Deploy is static
-publishing to `https://apps.futuremagic.de/imager/` (skill `apps-publish`:
-static only, no history fallback → hash routing or stateless tabs, asset base
-`/imager/`) — publishing happens in a LATER slice, not this one.
+ALWAYS the user's explicit pick (no pinned default). It IS published, at
+`https://apps.futuremagic.de/imager/`, via a symlink from `~/apps/imager` to
+`dist/` (skill `apps-publish`: static only, no history fallback → in-app tabs,
+asset base `/imager/`) — so `pnpm build` publishes immediately (see Workflow).
 
 Spec lives in `docs/` — read the relevant doc before working on an area.
 
@@ -93,10 +93,16 @@ owner reaffirms the original direction, execute it well and stop re-arguing.
   the same commit as the change — an unamended seam is treated as missing.
 - Commit style: subject + body + test count. Author identity is set per-commit
   via `git -c user.name='Imager Dev' -c user.email='dev@imager.local' commit`.
-- One logical task per commit. There is NO remote yet and none may be created
-  (the owner provides the GitHub repo later) — so commit locally on `main` and
-  DO NOT push. Publishing (skill `apps-publish`) happens in a later slice;
-  never publish from a slice that did not scope it.
+- One logical task per commit. The remote IS `origin` =
+  `https://github.com/ArndRosemeier/Imager.git`; a WRITER commits locally and
+  does **not** push — the dispatcher pushes after verifying.
+- **A BUILD PUBLISHES.** `~/apps/imager` is a symlink to this repo's `dist/`
+  (skill `apps-publish`), so `pnpm build` (which the gate runs for a
+  build-config diff, and which writers run to prove the bundle) writes the
+  PUBLIC site at `https://apps.futuremagic.de/imager/` at once. There is no
+  separate publish step to forget. Consequences: never build a tree you would
+  not let the public see; after any build, expect the live site to have moved,
+  and verify the served JS hash against `dist/` rather than assuming it did not.
 
 ## The gate and the clock
 
