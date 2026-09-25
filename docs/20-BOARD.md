@@ -14,23 +14,25 @@ the subagent registry and `pgrep -af "vites[t]"` before acting on it.
 | Slice | sha | CoS verification |
 |---|---|---|
 | 0 bootstrap (ledger row 1) | `debd338` | Full gate exit 0 (2 files / 2 tests), log `.gate-logs/cos-verify-debd338.log`. Injection: heading renamed → smoke pin RED (exit 1, "Unable to find … heading … Imager"), restored by trap, tree clean. Lock probe: held lock → gate exit 9 VOID. |
+| 1 settings + model knowledge (ledger row 2) | `d68daf8` | Full gate exit 0 (6 files / 14 tests), log `.gate-logs/cos-verify-d68daf8.log`. Own injection (distinct from writer's): `canGenerateImages` reads input instead of output modalities, sha 55c4cf88→93adeea5 → pin `classifies the real fixture entries` RED (exit 1), restored sha 55c4cf88, tree clean. |
 
 ## In flight
-Slice 1 (ledger row 2) — writer `3e9c1fa9`, main tree, sole writer, based on `754d061`.
+None.
 
 ## Queue (plan: owner-approved 2026-09-25)
-1. **Slice 1 — settings + key + model pickers + capability spike.** Settings row
-   (key, image model, refine-chat model — ALL empty by default, explicit "pick a
-   model" state), key test, live model lists. Spike answers, into the ledger:
-   which models accept `input_references`, which do chat-with-image-output, `n`
-   caps, size/aspect params.
 2. Slice 2 — text-to-image + gallery (port `imageGen.ts`).
 3. Slice 3 — Images-API refinement (`input_references`, upload-as-seed, variants).
 4. Slice 4 — **chat refinement** (multi-turn chat, image output, only for capable models).
 5. Slice 5 — library/run log/cost/export.
 6. Slice 6 — hardening + publish via `apps-publish`.
 
+## Open owner fork
+- Refine-chat picker: restrict to image-in + image-out + text-out (11 models, recommended) vs all 55 image-in+out with a badge (as built). Awaiting owner.
+
 ## Known debt / notes
+- No fallback model (owner, ledger row 3).
+- `/models` needs `?output_modalities=all`; the plain endpoint hides 46 image models (measured, ledger row 2).
+- Per-model Images-API limits live at `/images/models` (n max, reference-image max) — slice 2/3 must read them, not guess.
 - `scripts/gate.sh` is a simplified port: no chunking, no RSS watchdog, no
   build-config build step (docs/18 §4). Lock + exit 9 verified by CoS; the
   stale-lock path is not yet exercised.
