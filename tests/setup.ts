@@ -2,12 +2,18 @@ import '@testing-library/jest-dom/vitest';
 import 'fake-indexeddb/auto';
 
 import { cleanup } from '@testing-library/react';
+import { toast } from 'sonner';
 import { afterEach, beforeEach } from 'vitest';
 
 import { DEFAULT_THEME } from '@/lib/theme';
 
 afterEach(() => {
   cleanup();
+  // `toastError` uses `duration: Infinity` (a real error must not vanish on its
+  // own), so a toast outlives its test unless it is dismissed. Two tests in one
+  // file that both fail a run would otherwise leave the second one asserting
+  // against the first one's toast too.
+  toast.dismiss();
 });
 
 // Every test starts from the state a fresh browser load has: no stored theme,

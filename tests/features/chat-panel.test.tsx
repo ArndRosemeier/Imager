@@ -6,7 +6,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { App } from '@/App';
 import { db } from '@/db/db';
 import { updateSettings } from '@/db/settingsRepo';
-import { REFERENCE_MAX_EDGE_PX, bytesToDataUrl } from '@/features/refine/reference';
+import { REFERENCE_MAX_EDGE_PX } from '@/features/refine/reference';
 import { resetImageModelCache } from '@/llm/imageModels';
 import { resetModelCache } from '@/llm/models';
 import { jsonResponse } from '../helpers';
@@ -36,22 +36,31 @@ function decodeAt(width: number, height: number): () => Promise<ImageBitmap> {
   return () => Promise.resolve({ width, height, close: () => undefined } as unknown as ImageBitmap);
 }
 
-class FakeCanvas {
+/**
+ * An `OffscreenCanvas` stand-in implementing the REAL contract the shared
+ * reference-prep seam calls: `getContext('2d')` + async `convertToBlob`. It has
+ * NO `toDataURL` on purpose — the real OffscreenCanvas does not either, and a
+ * double that adds one certifies code that throws in every real browser.
+ */
+class FakeOffscreenCanvas {
   static sizes: { width: number; height: number }[] = [];
   readonly width: number;
   readonly height: number;
+  private readonly context: { canvas: FakeOffscreenCanvas; drawImage: () => void };
   constructor(width: number, height: number) {
     this.width = width;
     this.height = height;
-    FakeCanvas.sizes.push({ width, height });
+    FakeOffscreenCanvas.sizes.push({ width, height });
+    this.context = { canvas: this, drawImage: () => undefined };
   }
-  getContext(): { canvas: FakeCanvas; drawImage: () => void } {
-    return { canvas: this, drawImage: () => undefined };
+  getContext(): { canvas: FakeOffscreenCanvas; drawImage: () => void } {
+    return this.context;
   }
-  toDataURL(mimeType: string): string {
-    return bytesToDataUrl(
-      new TextEncoder().encode(`${String(this.width)}x${String(this.height)}`),
-      mimeType,
+  convertToBlob(options?: ImageEncodeOptions): Promise<Blob> {
+    return Promise.resolve(
+      new Blob([new TextEncoder().encode(`${String(this.width)}x${String(this.height)}`)], {
+        type: options?.type ?? 'image/png',
+      }),
     );
   }
 }
@@ -89,8 +98,8 @@ beforeEach(async () => {
   resetModelCache();
   await Promise.all([db.settings.clear(), db.images.clear(), db.runs.clear(), db.conversations.clear()]);
   vi.stubGlobal('createImageBitmap', decodeAt(2000, 1000));
-  vi.stubGlobal('OffscreenCanvas', FakeCanvas);
-  FakeCanvas.sizes = [];
+  vi.stubGlobal('OffscreenCanvas', FakeOffscreenCanvas);
+  FakeOffscreenCanvas.sizes = [];
   URL.createObjectURL = vi.fn(() => 'blob:x');
   URL.revokeObjectURL = vi.fn();
 });
@@ -209,7 +218,7 @@ it('the SECOND turn carries the first user text AND the first image, re-encoded 
   const replayed = second.messages[1]?.images?.[0]?.image_url.url ?? '';
   expect(replayed.startsWith('data:image/png;base64,')).toBe(true);
   // 2000×1000 was re-encoded by the SHARED reference prep, long edge = cap.
-  expect(FakeCanvas.sizes).toEqual([{ width: REFERENCE_MAX_EDGE_PX, height: 512 }]);
+  expect(FakeOffscreenCanvas.sizes).toEqual([{ width: REFERENCE_MAX_EDGE_PX, height: 512 }]);
   expect(decodeSizes(replayed)).toBe('1024x512');
 
   // Turn 2 records what it sent back, and both turns stay in the conversation.

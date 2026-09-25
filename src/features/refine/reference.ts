@@ -59,31 +59,65 @@ export function bytesToDataUrl(bytes: Uint8Array<ArrayBuffer>, mimeType: string)
 }
 
 /**
+ * `OffscreenCanvas` → `data:` URL.
+ *
+ * The OffscreenCanvas contract has NO `toDataURL` — that is an
+ * `HTMLCanvasElement` method, and calling it on an OffscreenCanvas is a
+ * TypeError in every real browser (the live defect this seam carried). An
+ * OffscreenCanvas encodes ASYNCHRONOUSLY through `convertToBlob`, which
+ * resolves with a `Blob` and rejects on a zero-sized bitmap. An empty blob is
+ * a loud error, never a pass-through of an oversized image (rule 1).
+ *
+ * The bytes→base64 half is the SHARED `bytesToDataUrl` seam, not a second
+ * encoder.
+ */
+async function offscreenCanvasDataUrl(canvas: OffscreenCanvas, mimeType: string): Promise<string> {
+  const blob = await canvas.convertToBlob({ type: mimeType });
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  if (bytes.length === 0) {
+    throw new Error('Could not downscale the reference: the re-encoded image is empty');
+  }
+  return bytesToDataUrl(bytes, blob.type === '' ? mimeType : blob.type);
+}
+
+/**
+ * `HTMLCanvasElement` → `data:` URL. `toDataURL` is correct ONLY here, on the
+ * detached-`<canvas>` fallback: a zero-sized bitmap yields the bare `"data:,"`
+ * sentinel, which is a loud error, never an empty reference (rule 1).
+ */
+function htmlCanvasDataUrl(canvas: HTMLCanvasElement, mimeType: string): string {
+  const dataUrl = canvas.toDataURL(mimeType);
+  const comma = dataUrl.indexOf(',');
+  if (!dataUrl.startsWith('data:') || comma < 0 || comma === dataUrl.length - 1) {
+    throw new Error('Could not downscale the reference: the re-encoded image is empty');
+  }
+  return dataUrl;
+}
+
+/**
  * Re-encodes a decoded bitmap at `target` size. Prefers `OffscreenCanvas`
  * (no DOM document needed) and falls back to a detached `<canvas>`; a runtime
  * with neither is a loud error, never a pass-through of an oversized image.
  */
-function encodeScaled(
+async function encodeScaled(
   bitmap: ImageBitmap,
   target: { width: number; height: number },
   mimeType: string,
-): string {
-  const draw = (context: CanvasRenderingContext2D): string => {
-    context.drawImage(bitmap, 0, 0, target.width, target.height);
-    return context.canvas.toDataURL(mimeType);
-  };
+): Promise<string> {
   if (typeof OffscreenCanvas === 'function') {
     const canvas = new OffscreenCanvas(target.width, target.height);
     const context = canvas.getContext('2d');
     if (context === null) throw new Error('Could not get a 2d context to downscale the reference');
-    return draw(context as unknown as CanvasRenderingContext2D);
+    context.drawImage(bitmap, 0, 0, target.width, target.height);
+    return offscreenCanvasDataUrl(canvas, mimeType);
   }
   const canvas = document.createElement('canvas');
   canvas.width = target.width;
   canvas.height = target.height;
   const context = canvas.getContext('2d');
   if (context === null) throw new Error('Could not get a 2d context to downscale the reference');
-  return draw(context);
+  context.drawImage(bitmap, 0, 0, target.width, target.height);
+  return htmlCanvasDataUrl(canvas, mimeType);
 }
 
 /**
@@ -116,7 +150,7 @@ export async function prepareReference(
       };
     }
     return {
-      dataUrl: encodeScaled(bitmap, target, blob.type),
+      dataUrl: await encodeScaled(bitmap, target, blob.type),
       width: target.width,
       height: target.height,
       downscaled: true,

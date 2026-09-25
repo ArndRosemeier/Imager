@@ -7,11 +7,7 @@ import { App } from '@/App';
 import { db } from '@/db/db';
 import { saveUploadedImage } from '@/db/imageRepo';
 import { updateSettings } from '@/db/settingsRepo';
-import {
-  REFERENCE_MAX_EDGE_PX,
-  bytesToDataUrl,
-  prepareReference,
-} from '@/features/refine/reference';
+import { REFERENCE_MAX_EDGE_PX, prepareReference } from '@/features/refine/reference';
 import type { StoredImage } from '@/domain/image';
 import { resetImageModelCache } from '@/llm/imageModels';
 import { jsonResponse } from '../helpers';
@@ -22,24 +18,36 @@ const SOURCE_ID = 'source-1';
 let posts: string[] = [];
 
 /**
- * A minimal `OffscreenCanvas` stand-in. It records the size the seam asked to
- * draw at and encodes THAT size into the produced data URL, so a test can
- * decode the payload and see the dimensions that were actually sent — the
- * resize math, the cap and the mime pass-through stay real code.
+ * A minimal `OffscreenCanvas` stand-in that implements the REAL contract this
+ * seam calls: `getContext('2d')` plus the ASYNCHRONOUS `convertToBlob({type})`
+ * returning a `Blob`. It deliberately has NO `toDataURL` — the method the real
+ * OffscreenCanvas does not have, whose absence was the live bug (a double that
+ * added it certified code that threw in every real browser). It records the
+ * size it was asked to draw at and encodes THAT size into the produced blob, so
+ * a test can decode the payload and see the dimensions actually sent.
  */
-class FakeCanvas {
+class FakeOffscreenCanvas {
   static sizes: { width: number; height: number }[] = [];
+  static encodeCalls: { type: string | undefined }[] = [];
   readonly width: number;
   readonly height: number;
+  private readonly context: { canvas: FakeOffscreenCanvas; drawImage: () => void };
   constructor(width: number, height: number) {
     this.width = width;
     this.height = height;
-    FakeCanvas.sizes.push({ width, height });
+    FakeOffscreenCanvas.sizes.push({ width, height });
+    this.context = { canvas: this, drawImage: () => undefined };
   }
-  getContext(): { canvas: FakeCanvas; drawImage: () => void } {
-    return { canvas: this, drawImage: () => undefined };
-  }  toDataURL(mimeType: string): string {
-    return bytesToDataUrl(new TextEncoder().encode(`${String(this.width)}x${String(this.height)}`), mimeType);
+  getContext(): { canvas: FakeOffscreenCanvas; drawImage: () => void } {
+    return this.context;
+  }
+  convertToBlob(options?: ImageEncodeOptions): Promise<Blob> {
+    FakeOffscreenCanvas.encodeCalls.push({ type: options?.type });
+    return Promise.resolve(
+      new Blob([new TextEncoder().encode(`${String(this.width)}x${String(this.height)}`)], {
+        type: options?.type ?? 'image/png',
+      }),
+    );
   }
 }
 
@@ -100,10 +108,11 @@ beforeEach(async () => {
   await Promise.all([db.settings.clear(), db.images.clear(), db.runs.clear()]);
   URL.createObjectURL = vi.fn(() => 'blob:x');
   URL.revokeObjectURL = vi.fn();
-  FakeCanvas.sizes = [];
+  FakeOffscreenCanvas.sizes = [];
+  FakeOffscreenCanvas.encodeCalls = [];
   // jsdom has no canvas at all: the seam's `OffscreenCanvas` branch is the one
   // exercised, with the size it is asked to draw at recorded.
-  vi.stubGlobal('OffscreenCanvas', FakeCanvas);
+  vi.stubGlobal('OffscreenCanvas', FakeOffscreenCanvas);
 });
 
 afterEach(() => {
@@ -151,7 +160,10 @@ it('refine sends the source as a downscaled input_reference and records kind ref
   expect(reference?.type).toBe('image_url');
   expect(reference?.image_url.url.startsWith('data:image/jpeg;base64,')).toBe(true);
   // The 2000×1000 source was downscaled to a long edge of exactly the cap.
-  expect(FakeCanvas.sizes).toEqual([{ width: REFERENCE_MAX_EDGE_PX, height: 512 }]);
+  expect(FakeOffscreenCanvas.sizes).toEqual([{ width: REFERENCE_MAX_EDGE_PX, height: 512 }]);
+  // The OffscreenCanvas path encodes through the REAL contract: the async
+  // `convertToBlob({type})`, with the source mime — never `toDataURL`.
+  expect(FakeOffscreenCanvas.encodeCalls).toEqual([{ type: 'image/jpeg' }]);
   expect(decodeSizes(reference?.image_url.url ?? '')).toBe('1024x512');
 
   const runs = await db.runs.toArray();
@@ -268,7 +280,51 @@ it('prepareReference leaves an image at or under the cap untouched', async () =>
   const prepared = await prepareReference(small, decodeAt(800, 600));
   expect(prepared).toMatchObject({ width: 800, height: 600, downscaled: false });
   expect(prepared.dataUrl.startsWith('data:image/png;base64,')).toBe(true);
-  expect(FakeCanvas.sizes).toEqual([]);
+  expect(FakeOffscreenCanvas.sizes).toEqual([]);
+});
+
+it('an encode that yields an EMPTY blob THROWS instead of passing the oversized source through', async () => {
+  class EmptyBlobCanvas extends FakeOffscreenCanvas {
+    override convertToBlob(): Promise<Blob> {
+      return Promise.resolve(new Blob([], { type: 'image/jpeg' }));
+    }
+  }
+  vi.stubGlobal('OffscreenCanvas', EmptyBlobCanvas);
+  const big = new Blob([new Uint8Array([1, 2, 3])], { type: 'image/jpeg' });
+  await expect(prepareReference(big, decodeAt(2000, 1000))).rejects.toThrow(/is empty/);
+});
+
+it('a zero-sized decode THROWS instead of passing the source through', async () => {
+  const big = new Blob([new Uint8Array([1, 2, 3])], { type: 'image/png' });
+  await expect(prepareReference(big, decodeAt(0, 0))).rejects.toThrow(/empty size/);
+});
+
+it('an encode failure during refine → visible error + failed run, no request sent', async () => {
+  class FailingEncodeCanvas extends FakeOffscreenCanvas {
+    override convertToBlob(): Promise<Blob> {
+      return Promise.reject(new Error('the encoder refused the bitmap'));
+    }
+  }
+  vi.stubGlobal('OffscreenCanvas', FailingEncodeCanvas);
+  stubFetch(() => jsonResponse({}));
+  vi.stubGlobal('createImageBitmap', decodeAt(2000, 1000));
+  await updateSettings({ openRouterApiKey: 'sk', imageModel: MODEL });
+  await seedSource();
+  render(<App />);
+  const user = userEvent.setup();
+  await pickSourceFromGallery(user);
+  await screen.findByRole('img', { name: /Refinement source: seeded source/ });
+  await user.type(screen.getByLabelText('Instruction'), 'make it night');
+  await user.click(screen.getByRole('button', { name: 'Refine' }));
+
+  expect(await screen.findByText(/Run failed: the encoder refused the bitmap/)).toBeInTheDocument();
+  expect(await screen.findByText('Refinement failed')).toBeInTheDocument();
+  expect(posts).toEqual([]);
+  const runs = await db.runs.toArray();
+  expect(runs).toHaveLength(1);
+  expect(runs[0]).toMatchObject({ kind: 'refine', inputImageIds: [SOURCE_ID], receivedCount: 0 });
+  expect(runs[0]?.error).toMatch(/the encoder refused the bitmap/);
+  await expect(db.images.count()).resolves.toBe(1);
 });
 
 it('a model that publishes no input_references disables Refine with a reason', async () => {
