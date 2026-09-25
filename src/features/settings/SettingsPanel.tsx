@@ -139,7 +139,7 @@ export function SettingsPanel(): React.JSX.Element {
             }}
           />
           <ModelPicker
-            label="Refinement chat model"
+            label="Refinement model"
             models={models.filter(canRefineViaChat)}
             selectedId={settings.refineChatModel}
             onSelect={(id) => {

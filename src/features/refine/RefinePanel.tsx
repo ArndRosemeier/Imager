@@ -4,7 +4,7 @@ import { getImage, saveUploadedImage } from '@/db/imageRepo';
 import type { Run, StoredImage } from '@/domain/image';
 import { RunStatus } from '@/features/generate/RunStatus';
 import { runGeneration } from '@/features/generate/runGeneration';
-import { blockReason, useImagePanel } from '@/features/generate/useImagePanel';
+import { refineBlockReason, useImagePanel } from '@/features/generate/useImagePanel';
 import { IMAGE_ACCEPT } from '@/features/refine/reference';
 import { useImageUrl } from '@/features/gallery/useImageUrl';
 import { errorMessage } from '@/lib/errors';
@@ -89,7 +89,7 @@ export function RefinePanel({
   const reason =
     source === null
       ? 'Choose or upload an image to refine'
-      : blockReason(state, instruction, 'Enter an instruction for the refinement.');
+      : refineBlockReason(state, instruction);
 
   const onUpload = async (file: File): Promise<void> => {
     setUploadError(null);
@@ -121,7 +121,9 @@ export function RefinePanel({
     setLastRun(null);
     runGeneration({
       apiKey: state.settings.openRouterApiKey,
-      model: state.settings.imageModel,
+      // The owner's refinement model when picked, else the image model
+      // (ledger row 11).
+      model: state.refineModel,
       prompt: instruction.trim(),
       // A refinement is one output image: the refinement is the source itself,
       // so a multi-image response would be N near-duplicates of one result.
@@ -135,7 +137,7 @@ export function RefinePanel({
           id: 'failed',
           kind: 'refine',
           prompt: instruction.trim(),
-          model: state.settings.imageModel,
+          model: state.refineModel,
           inputImageIds: [source.id],
           requestedCount: 1,
           receivedCount: 0,
@@ -160,12 +162,19 @@ export function RefinePanel({
       <p className="text-sm">
         Model:{' '}
         <span className="font-mono">
-          {state.settings.imageModel === '' ? 'No model selected' : state.settings.imageModel}
+          {state.refineModel === '' ? 'No model selected' : state.refineModel}
         </span>
+        {state.settings.refineChatModel === '' && (
+          <span className="text-muted">
+            {' '}
+            (the refinement model is unset, so this uses the image model — set a refinement model in
+            Settings to choose separately)
+          </span>
+        )}
       </p>
-      {state.limits !== null && state.limits.maxReferences === 0 && (
+      {state.refineLimits !== null && state.refineLimits.maxReferences === 0 && (
         <div role="alert" className="rounded border border-amber-400 bg-warn-surface p-2 text-on-warn-surface">
-          This model does not accept reference images — pick another image model in Settings to
+          This model does not accept reference images — pick another refinement model in Settings to
           refine.
         </div>
       )}

@@ -170,6 +170,52 @@ it('refine sends the source as a downscaled input_reference and records kind ref
   expect(produced[0]).toMatchObject({ runId: runs[0]?.id });
 });
 
+it('refine sends the REFINEMENT model when one is picked (ledger row 11)', async () => {
+  stubFetch(() =>
+    jsonResponse({ data: [{ b64_json: btoa('x'), media_type: 'image/png' }], usage: { cost: 0.25 } }),
+  );
+  vi.stubGlobal('createImageBitmap', decodeAt(2000, 1000));
+  // The image model and the refinement model are DIFFERENT, so a stray
+  // `imageModel` in the request body is visible rather than accidental.
+  await updateSettings({
+    openRouterApiKey: 'sk',
+    imageModel: MODEL,
+    refineChatModel: 'google/gemini-2.5-flash-image',
+  });
+  await seedSource();
+  render(<App />);
+  const user = userEvent.setup();
+  await pickSourceFromGallery(user);
+  await screen.findByRole('img', { name: /Refinement source: seeded source/ });
+  await user.type(screen.getByLabelText('Instruction'), 'make it night');
+  await user.click(screen.getByRole('button', { name: 'Refine' }));
+
+  expect(await screen.findByText(/\$0\.2500/)).toBeInTheDocument();
+  const sent = JSON.parse(posts[0] ?? '') as { model: string };
+  expect(sent.model).toBe('google/gemini-2.5-flash-image');
+  const runs = await db.runs.toArray();
+  expect(runs[0]).toMatchObject({ kind: 'refine', model: 'google/gemini-2.5-flash-image' });
+});
+
+it('refine falls back to the image model when no refinement model is picked', async () => {
+  stubFetch(() =>
+    jsonResponse({ data: [{ b64_json: btoa('x'), media_type: 'image/png' }], usage: { cost: 0.1 } }),
+  );
+  vi.stubGlobal('createImageBitmap', decodeAt(2000, 1000));
+  await updateSettings({ openRouterApiKey: 'sk', imageModel: MODEL, refineChatModel: '' });
+  await seedSource();
+  render(<App />);
+  const user = userEvent.setup();
+  await pickSourceFromGallery(user);
+  await screen.findByRole('img', { name: /Refinement source: seeded source/ });
+  await user.type(screen.getByLabelText('Instruction'), 'make it night');
+  await user.click(screen.getByRole('button', { name: 'Refine' }));
+
+  expect(await screen.findByText(/\$0\.1000/)).toBeInTheDocument();
+  const sent = JSON.parse(posts[0] ?? '') as { model: string };
+  expect(sent.model).toBe(MODEL);
+});
+
 it('a source that fails to decode → visible error + failed refine run, no request sent', async () => {
   stubFetch(() => jsonResponse({}));
   vi.stubGlobal('createImageBitmap', () => Promise.reject(new Error('broken image data')));

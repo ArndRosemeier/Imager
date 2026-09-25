@@ -25,7 +25,7 @@ it('shows "No model selected" for both pickers and filters by capability', async
   stubFetch(() => jsonResponse({}, 500));
   render(<App initialTab="Settings" />);
   const image = await screen.findByRole('region', { name: 'Image model' });
-  const refine = screen.getByRole('region', { name: 'Refinement chat model' });
+  const refine = screen.getByRole('region', { name: 'Refinement model' });
   expect(within(image).getByText('No model selected')).toBeInTheDocument();
   expect(within(refine).getByText('No model selected')).toBeInTheDocument();
   expect(within(image).getAllByRole('option')).toHaveLength(9);
