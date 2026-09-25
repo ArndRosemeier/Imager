@@ -34,6 +34,7 @@ None.
 None. (Auto-routers stay — ledger row 7.)
 
 ## Known debt / notes
+- DISPATCHER ERROR (2026-09-25, slice-11 change): an injection's `trap` restored `src/features/generate/useImagePanel.ts` **from HEAD** while that slice was UNCOMMITTED, destroying the change; it was reapplied by hand and re-gated (40/40). The injected pin DID fire correctly (hash 768594f4→54904ace, RED). Lesson: while a slice is uncommitted, restore from an out-of-tree copy (`.gate-logs/inject-backup/`), never from HEAD.
 - Slice 2 UNVERIFIED without a key: the live `POST /images` response shape (fixture-based only); a response missing `media_type` now throws rather than guessing.
 - Owner said publish AFTER slice 2 — ask before publishing.
 - DISPATCHER ERROR (2026-09-25): `5ef4865` was committed on a RED gate (exit 1, stale count in `tests/features/settings-panel.test.tsx`). The chained command appended the ledger row and committed without testing the gate's exit code. Fixed forward in the next commit (full gate exit 0, 14/14). Rule for this session: commit ONLY after reading `GATE GREEN — exit 0`, never in the same command as the gate. Also ran that ~4s re-gate in the foreground.
