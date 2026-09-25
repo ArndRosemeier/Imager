@@ -18,6 +18,12 @@ export class ImagerDb extends Dexie {
     super(name);
     this.version(1).stores({ settings: 'id' });
     this.version(2).stores({ images: 'id, createdAt, runId', runs: 'id, createdAt' });
+    // v3 (slice 3): `StoredImage.source`, `Run.kind` and `Run.inputImageIds`
+    // are stored fields, NOT indexes — so no store schema moves and every v1/v2
+    // row survives verbatim (pin: tests/db/migration.test.ts). The version is
+    // declared anyway so the data-shape change is visible here, next to the
+    // indexes that did not change.
+    this.version(3).stores({ images: 'id, createdAt, runId', runs: 'id, createdAt' });
   }
 }
 

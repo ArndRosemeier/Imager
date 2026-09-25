@@ -30,3 +30,13 @@ it('no model id literal appears in src/', () => {
   );
   expect(offenders).toEqual([]);
 });
+
+// Slice 3: ONE image request shape. The body of a reference entry
+// (`image_url.url`) is built in exactly one place — a second consumer that
+// assembled its own entry could send a differently-shaped reference.
+it('the reference entry body is built in exactly one src/ file', () => {
+  const hits = sourceFiles('src').filter((f) =>
+    readFileSync(f, 'utf8').includes('image_url: { url:'),
+  );
+  expect(hits).toEqual(['src/llm/images.ts']);
+});

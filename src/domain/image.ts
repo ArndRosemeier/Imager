@@ -5,6 +5,9 @@ import { z } from 'zod';
  * Bytes are `Uint8Array`, not Blob: structured clone (IndexedDB and
  * fake-indexeddb) round-trips typed arrays reliably, Blobs do not.
  */
+export const IMAGE_SOURCES = ['generated', 'uploaded'] as const;
+export type ImageSource = (typeof IMAGE_SOURCES)[number];
+
 export const storedImageSchema = z.strictObject({
   id: z.string().min(1),
   // Tag check, not instanceof: a structured-cloned array may come from another realm.
@@ -16,15 +19,36 @@ export const storedImageSchema = z.strictObject({
   height: z.number().int().positive(),
   prompt: z.string(),
   model: z.string().min(1),
+  /** Provenance: produced by a run, or uploaded from disk (slice 3). */
+  source: z.enum(IMAGE_SOURCES),
   createdAt: z.number(),
-  runId: z.string().min(1),
+  /**
+   * The run that produced this image; EMPTY for an upload, which no run
+   * produced. A sentinel run id would be a fabricated row (rule 1), and the
+   * type cannot be optional without making every stored row ambiguous.
+   */
+  runId: z.string(),
 });
 export type StoredImage = z.infer<typeof storedImageSchema>;
 
+/**
+ * The model value recorded for an uploaded file. There is no generating model
+ * behind an upload, and a stored image requires a non-empty `model`; this is
+ * that honest placeholder, never a model the app picked.
+ */
+export const UPLOADED_IMAGE_MODEL = 'uploaded file';
+
+export const RUN_KINDS = ['generate', 'refine'] as const;
+export type RunKind = (typeof RUN_KINDS)[number];
+
 export const runSchema = z.strictObject({
   id: z.string().min(1),
+  /** Which seam path produced this run (slice 3 refines an input image). */
+  kind: z.enum(RUN_KINDS),
   prompt: z.string(),
   model: z.string().min(1),
+  /** `StoredImage` ids sent as `input_references`; empty for a generate run. */
+  inputImageIds: z.array(z.string().min(1)),
   requestedCount: z.number().int().positive(),
   receivedCount: z.number().int().nonnegative(),
   filteredCount: z.number().int().nonnegative(),

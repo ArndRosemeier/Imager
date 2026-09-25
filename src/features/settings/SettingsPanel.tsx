@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { getSettings, updateSettings } from '@/db/settingsRepo';
 import type { Settings } from '@/domain/settings';
 import { testApiKey } from '@/llm/key';
@@ -71,7 +72,17 @@ export function SettingsPanel(): React.JSX.Element {
 
   return (
     <div className="flex flex-col gap-4">
-      <section aria-label="OpenRouter API key" className="rounded border border-gray-300 p-3">
+      <section
+        aria-label="Appearance"
+        className="flex flex-wrap items-center justify-between gap-2 rounded border border-strong bg-surface p-3"
+      >
+        <h2 className="font-semibold">Appearance</h2>
+        <ThemeToggle />
+      </section>
+      <section
+        aria-label="OpenRouter API key"
+        className="rounded border border-strong bg-surface p-3"
+      >
         <label htmlFor="api-key" className="block font-semibold">
           OpenRouter API key
         </label>
@@ -79,7 +90,7 @@ export function SettingsPanel(): React.JSX.Element {
           id="api-key"
           type="password"
           autoComplete="off"
-          className="w-full rounded border px-2 py-1 font-mono"
+          className="w-full rounded border border-strong bg-canvas px-2 py-1 font-mono text-ink"
           value={keyDraft}
           onChange={(e) => {
             setKeyDraft(e.target.value);
@@ -91,7 +102,7 @@ export function SettingsPanel(): React.JSX.Element {
         />
         <button
           type="button"
-          className="mt-2 rounded bg-blue-700 px-3 py-1 text-white disabled:opacity-50"
+          className="mt-2 rounded bg-accent px-3 py-1 text-on-accent disabled:opacity-50"
           disabled={testing}
           onClick={onTestKey}
         >
@@ -100,7 +111,10 @@ export function SettingsPanel(): React.JSX.Element {
       </section>
 
       {modelsError !== null && (
-        <div role="alert" className="rounded border border-red-400 bg-red-50 p-3 text-red-900">
+        <div
+          role="alert"
+          className="rounded border border-danger bg-danger-surface p-3 text-on-danger-surface"
+        >
           Model list failed to load: {modelsError}{' '}
           <button
             type="button"

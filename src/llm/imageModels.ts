@@ -8,7 +8,8 @@
  * `{type:'range',min,max}` | `{type:'enum',values}` | `{type:'boolean'}`.
  * `n` is published for 51 (max 1/4/6/10); 4 publish no `n` at all
  * (meta/muse-image, krea/krea-2-*) — read as "n not supported" → count 1.
- * `aspect_ratio` enum for 52.
+ * `aspect_ratio` enum for 52. `input_references` range for 53 — the 2 that
+ * publish none cannot refine, and `maxReferences` says so.
  */
 import { z } from 'zod';
 
@@ -36,6 +37,13 @@ export interface ImageModelLimits {
   maxCount: number;
   /** Published aspect ratios; empty → the control is hidden, none is sent. */
   aspectRatios: string[];
+  /**
+   * `input_references` max the model publishes; 0/absent → the model cannot
+   * take a reference image, so the Refine path is disabled with a reason
+   * instead of failing at the API (the same "bounds come from here, never
+   * from a guess" rule as the count).
+   */
+  maxReferences: number;
 }
 
 let cache: Promise<Map<string, ImageModelLimits>> | null = null;
@@ -43,11 +51,16 @@ let cache: Promise<Map<string, ImageModelLimits>> | null = null;
 function limitsOf(params: Record<string, z.infer<typeof descriptorSchema>>): ImageModelLimits {
   const n = params.n;
   const ar = params.aspect_ratio;
+  const refs = params.input_references;
   return {
     listed: true,
     maxCount: n !== undefined && 'max' in n && typeof n.max === 'number' ? Math.max(1, n.max) : 1,
     aspectRatios:
       ar !== undefined && 'values' in ar && Array.isArray(ar.values) ? (ar.values as string[]) : [],
+    maxReferences:
+      refs !== undefined && 'max' in refs && typeof refs.max === 'number'
+        ? Math.max(0, refs.max)
+        : 0,
   };
 }
 
@@ -69,7 +82,12 @@ export function listImageModelLimits(apiKey: string): Promise<Map<string, ImageM
   return cache;
 }
 
-export const UNLISTED_LIMITS: ImageModelLimits = { listed: false, maxCount: 1, aspectRatios: [] };
+export const UNLISTED_LIMITS: ImageModelLimits = {
+  listed: false,
+  maxCount: 1,
+  aspectRatios: [],
+  maxReferences: 0,
+};
 
 /** Limits for one id; an unlisted model gets the loud UNLISTED_LIMITS. */
 export function limitsFor(all: Map<string, ImageModelLimits>, modelId: string): ImageModelLimits {

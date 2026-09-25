@@ -2,9 +2,15 @@
 
 ## §1 Layer map (today)
 
-- `src/App.tsx` — heading + in-app tab bar (Generate | Settings, `useState`, no router) + `<Toaster>`.
-- `src/main.tsx` — mounts `App` inside `ErrorBoundary`; window `error` /
-  `unhandledrejection` → `toastError`. Throws if `#root` is missing.
+- `src/App.tsx` — full-width page shell (no `max-w-3xl` cap; prose blocks are
+  bounded locally), heading + theme toggle in the header, in-app tab bar
+  (Generate | Settings, `useState`, no router) + `<Toaster theme>`.
+- `src/features/generate/GenerateArea.tsx` — the Create | Refine tablist + the
+  ONE gallery both modes write to; owns the selected refinement source.
+- `src/main.tsx` — mounts `App` inside `ErrorBoundary`; re-applies the theme
+  through the seam; window `error` / `unhandledrejection` → `toastError`.
+  Throws if `#root` is missing.
+- `index.html` — the inline pre-paint theme script (the ONLY inline script).
 - `vite.config.ts` — `base: '/imager/'`, `@/*` alias, `test.maxWorkers` 2.
 - `scripts/gate.sh` — the ONE suite runner (pin `tests/architecture/one-gate.test.ts`).
 
@@ -21,21 +27,25 @@
 | Toast (the one notice surface) + error helpers `errorMessage` / `toError` | `src/lib/toast.ts`, `src/lib/errors.ts` | — | Campaigner `src/lib/toast.ts` |
 | Global error boundary | `src/components/ErrorBoundary.tsx` | — | — |
 | Settings UI (key, test, two searchable pickers) | `src/features/settings/` | `tests/features/settings-panel.test.tsx` | — |
-| Images-API model limits (one session-cached PUBLIC `GET /images/models`; `limitsFor` → `{listed, maxCount, aspectRatios}`; unlisted → loud notice, count 1) — the UI bounds count/aspect by THIS, never guesses | `src/llm/imageModels.ts` | `tests/llm/images.test.ts` (real fixture `tests/fixtures/images-models-trimmed.json`), `tests/features/generate-panel.test.tsx` | — |
-| Image generation (`POST /images`, 5-min headers timeout, 200 error-envelope → typed error, zod, b64 → bytes, `filteredCount`, `usage.cost`; all filtered = throw). No fallback, no `input_references`, no n-cap retry | `src/llm/images.ts` | `tests/llm/images.test.ts` | Campaigner `src/llm/imageGen.ts` |
-| Image storage: domain `StoredImage`/`Run` (Uint8Array bytes) + repo (`saveRun` atomic run+images, zod on every read, corrupt row throws); Dexie v2 adds `images`, `runs` | `src/domain/image.ts`, `src/db/imageRepo.ts`, `src/db/db.ts` | `tests/db/migration.test.ts` (v1 settings row survives), `generate-panel.test.tsx` | Campaigner `src/domain/image.ts`, `src/db/imageRepo.ts` |
-| Generation run (one call → exactly one run row; failure = failed row + rethrow → toast) + Generate UI (disabled-with-reason, Cancel via AbortSignal, filter/cost line) | `src/features/generate/` | `tests/features/generate-panel.test.tsx` | — |
-| Gallery (newest-first grid, lightbox: prompt/model/cost/date/size, Download with MIME extension, Delete) + `useImageUrl` (object URL revoked on unmount) | `src/features/gallery/` | `tests/features/generate-panel.test.tsx` | Campaigner `src/features/images/use-image-url.ts` |
-| Base64 → bytes | `src/lib/base64.ts` | `tests/llm/images.test.ts` | Campaigner `src/lib/base64.ts` |
+| Images-API model limits (one session-cached PUBLIC `GET /images/models`; `limitsFor` → `{listed, maxCount, aspectRatios, maxReferences}`; unlisted → loud notice, count 1, no references) — the UI bounds count/aspect/REFINE by THIS, never guesses | `src/llm/imageModels.ts` | `tests/llm/images.test.ts` (real fixture `tests/fixtures/images-models-trimmed.json`), `tests/features/generate-panel.test.tsx`, `tests/features/refine-panel.test.tsx` | — |
+| Image generation (`POST /images`, 5-min headers timeout, 200 error-envelope → typed error, zod, b64 → bytes, `filteredCount`, `usage.cost`; all filtered = throw). Slice 3 ADDS `input_references` here (as `GenerateRequest.inputReferences`), so ONE seam serves generate AND refine — no second image client. No fallback, no n-cap retry, and the donor's silent "retry without the references" 400 path is deliberately NOT ported (a model that rejects references must fail loudly, not quietly produce a text-to-image result) | `src/llm/images.ts` | `tests/llm/images.test.ts`, `tests/architecture/one-fetch.test.ts` (`image_url: { url:` in exactly one file) | Campaigner `src/llm/imageGen.ts` |
+| Reference prep: stored image OR uploaded file → ONE `data:` URL for `input_references`, long edge capped at `REFERENCE_MAX_EDGE_PX` = 1024 (aspect preserved, never upscaled), decode failure THROWS | `src/features/refine/reference.ts` | `tests/features/refine-panel.test.tsx` | — |
+| Image storage: domain `StoredImage`/`Run` (Uint8Array bytes; `source: 'generated' \| 'uploaded'`; `Run.kind: 'generate' \| 'refine'` + `inputImageIds`) + repo (`saveRun` atomic run+images, `saveUploadedImage`, zod on every read, corrupt row throws; a v2 row without the slice-3 fields reads as its old meaning, never as a corrupt row) | `src/domain/image.ts`, `src/db/imageRepo.ts`, `src/db/db.ts` (v3: content change, no index moves) | `tests/db/migration.test.ts` (v1 settings + v2 rows survive), `generate-panel.test.tsx`, `refine-panel.test.tsx` | Campaigner `src/domain/image.ts`, `src/db/imageRepo.ts` |
+| Generation/refinement run (one call → exactly one run row; failure = failed row + rethrow → toast) + Generate UI (disabled-with-reason, Cancel via AbortSignal) + Refine UI (mode switch, source pick/upload, free-text instruction, disabled-with-reason) + the ONE result line `RunStatus` | `src/features/generate/`, `src/features/refine/RefinePanel.tsx` | `tests/features/generate-panel.test.tsx`, `tests/features/refine-panel.test.tsx` | — |
+| Gallery (newest-first multi-column grid, lightbox: prompt/model/cost/date/size, Download with MIME extension, Delete, "Refine this" → the refine panel) + `useImageUrl` (object URL revoked on unmount) | `src/features/gallery/` | `tests/features/generate-panel.test.tsx`, `tests/features/refine-panel.test.tsx` | Campaigner `src/features/images/use-image-url.ts` |
+| Theme (read/apply/persist/watch): `getTheme`/`setTheme`/`toggleTheme`/`useTheme`, the `dark` class on `<html>`, localStorage `imager.theme` as the ONE source of truth, default DARK when nothing is stored. The flash-free half is the inline script in `index.html` (the ONLY inline script), pinned to agree with the seam | `src/lib/theme.ts`, `src/components/ThemeToggle.tsx`, `src/index.css` (`@custom-variant dark`, semantic surface utilities), `index.html` | `tests/features/theme.test.tsx`, `tests/architecture/theme-startup.test.tsx` | — |
+| Base64/data-URL bytes both ways (`b64_json` → bytes; bytes → base64 for a reference `data:` URL) | `src/lib/base64.ts` | `tests/llm/images.test.ts`, `tests/features/refine-panel.test.tsx` | Campaigner `src/lib/base64.ts` |
 
-Stubs, not built yet: refinement via `input_references` (slice 3), chat-refinement path (chat completions with
-`modalities`), fallback chain (owner has NOT asked — queue question).
+Stubs, not built yet: the chat-refinement path (chat completions with `modalities`, slice 4),
+fallback chain (owner has NOT asked — queue question).
 
 ## §3 Gotchas
 
-- Static host has NO history fallback → v1 uses in-app tabs, never a router
+- The static host has NO history fallback → Imager uses in-app tabs (the
+  Generate | Settings bar, and Create | Refine inside it), never a router
   library. (Owner intent via brief; donor Campaigner uses react-router, which
-  does NOT port.)
+  does NOT port.) `index.html` must stay small: exactly one inline script (the
+  pre-paint theme read) and nothing else.
 - Asset base MUST stay `/imager/` — `dist/index.html` must reference
   `/imager/`-based assets, verified by build proof each slice that touches
   config.
@@ -43,6 +53,8 @@ Stubs, not built yet: refinement via `input_references` (slice 3), chat-refineme
   (flux, gpt-image, …) need `?output_modalities=all` (measured, docs/17 row 2).
 - Model choice is ALWAYS the user's explicit pick. Porting the donor's
   fallback chain must not smuggle in a pinned default.
+- A refinement instruction is FREE TEXT sent to the model verbatim — never
+  regex-parsed, never used to infer parameters (rule 5).
 
 ## §4 Known debt
 

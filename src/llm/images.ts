@@ -1,9 +1,12 @@
 /**
  * THE image-generation seam (ported, trimmed, from Campaigner
- * `src/llm/imageGen.ts`): `POST /images` through the one transport.
+ * `src/llm/imageGen.ts`): `POST /images` through the one transport. Slice 3
+ * adds the donor's `input_references` field, so ONE seam serves both a
+ * text-to-image run and a refinement — there is no second image client.
  * Deliberately DROPPED from the donor: the fallback chain (owner, ledger
- * row 3), `input_references` (slice 3), and the `n`-cap retry heuristic —
- * the count is bounded up front by `src/llm/imageModels.ts`.
+ * row 3), the donor's silent 400-retry WITHOUT the references, and the
+ * `n`-cap retry heuristic — the count is bounded up front by
+ * `src/llm/imageModels.ts`.
  */
 import { z } from 'zod';
 
@@ -25,12 +28,24 @@ const imagesResponseSchema = z.looseObject({
   usage: z.looseObject({ cost: z.number().optional() }).optional(),
 });
 
+/**
+ * One reference image in the shape `POST /images` documents
+ * (`input_references: [{ type: 'image_url', image_url: { url } }]`, the
+ * donor's `imageGen.ts`). `url` is a `data:` URL produced by
+ * `src/features/refine/reference.ts` — the seam that owns the ≤1024px cap.
+ */
+export interface ReferenceInput {
+  dataUrl: string;
+}
+
 export interface GenerateRequest {
   apiKey: string;
   model: string;
   prompt: string;
   n: number;
   aspectRatio?: string | undefined;
+  /** Empty/absent = text-to-image. Non-empty = a refinement of those images. */
+  inputReferences?: readonly ReferenceInput[] | undefined;
   signal?: AbortSignal | undefined;
   retryBackoffs?: readonly number[];
 }
@@ -58,6 +73,7 @@ function mediaType(value: string | undefined, status: number): string {
 
 export async function generateImages(req: GenerateRequest): Promise<GeneratedImages> {
   if (req.apiKey === '') throw new MissingApiKeyError();
+  const references = req.inputReferences ?? [];
   const response = await fetchWithRetries(
     '/images',
     {
@@ -68,6 +84,14 @@ export async function generateImages(req: GenerateRequest): Promise<GeneratedIma
         prompt: req.prompt,
         n: req.n,
         ...(req.aspectRatio === undefined ? {} : { aspect_ratio: req.aspectRatio }),
+        ...(references.length === 0
+          ? {}
+          : {
+              input_references: references.map((reference) => ({
+                type: 'image_url',
+                image_url: { url: reference.dataUrl },
+              })),
+            }),
       }),
       ...(req.signal === undefined ? {} : { signal: req.signal }),
     },

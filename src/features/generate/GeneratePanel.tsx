@@ -1,69 +1,38 @@
 import { useEffect, useRef, useState } from 'react';
 
-import { getSettings } from '@/db/settingsRepo';
 import type { Run } from '@/domain/image';
-import type { Settings } from '@/domain/settings';
+import { blockReason, useImagePanel } from '@/features/generate/useImagePanel';
 import { runGeneration } from '@/features/generate/runGeneration';
-import { Gallery } from '@/features/gallery/Gallery';
-import { limitsFor, listImageModelLimits, type ImageModelLimits } from '@/llm/imageModels';
-import { errorMessage, toError } from '@/lib/errors';
+import { RunStatus } from '@/features/generate/RunStatus';
+import { errorMessage } from '@/lib/errors';
 import { toastError } from '@/lib/toast';
 
-/** Why Generate is disabled, or null when it may run. */
-function blockReason(
-  settings: Settings,
-  prompt: string,
-  limits: ImageModelLimits | null,
-): string | null {
-  if (settings.openRouterApiKey === '') return 'Enter an OpenRouter API key in Settings.';
-  if (settings.imageModel === '') return 'No image model selected — pick a model in Settings.';
-  if (limits === null) return 'Loading model limits…';
-  if (prompt.trim() === '') return 'Enter a prompt.';
-  return null;
-}
-
-export function GeneratePanel(): React.JSX.Element {
-  const [settings, setSettings] = useState<Settings | null>(null);
-  const [limits, setLimits] = useState<ImageModelLimits | null>(null);
-  const [limitsError, setLimitsError] = useState<string | null>(null);
-  const [loadError, setLoadError] = useState<Error | null>(null);
+/**
+ * The text-to-image form. Layout only — the request path is
+ * `runGeneration` → the ONE `src/llm/images.ts` seam, shared with refinement.
+ */
+export function GeneratePanel({
+  onFinished,
+}: Readonly<{ onFinished: () => void }>): React.JSX.Element {
+  const { state, error } = useImagePanel();
   const [prompt, setPrompt] = useState('');
   const [count, setCount] = useState(1);
   const [aspect, setAspect] = useState('');
   const [busy, setBusy] = useState(false);
   const [lastRun, setLastRun] = useState<Run | null>(null);
-  const [galleryVersion, setGalleryVersion] = useState(0);
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    getSettings().then(
-      (s) => {
-        setSettings(s);
-        if (s.imageModel === '') return;
-        listImageModelLimits(s.openRouterApiKey).then(
-          (all) => {
-            setLimits(limitsFor(all, s.imageModel));
-          },
-          (error: unknown) => {
-            setLimitsError(errorMessage(error));
-            toastError('Could not load the image-model limits', error);
-          },
-        );
-      },
-      (error: unknown) => {
-        setLoadError(toError(error));
-      },
-    );
+    return () => {
+      abortRef.current?.abort(new DOMException('Generation cancelled', 'AbortError'));
+    };
   }, []);
 
-  if (loadError !== null) throw loadError;
-  if (settings === null) return <p>Loading settings…</p>;
+  if (error !== null) throw error;
+  if (state === null) return <p>Loading settings…</p>;
 
-  const reason =
-    limitsError === null
-      ? blockReason(settings, prompt, limits)
-      : `Model limits failed to load: ${limitsError}`;
-  const maxCount = limits?.maxCount ?? 1;
+  const reason = blockReason(state, prompt, 'Enter a prompt.');
+  const maxCount = state.limits?.maxCount ?? 1;
 
   const onGenerate = (): void => {
     const controller = new AbortController();
@@ -71,142 +40,131 @@ export function GeneratePanel(): React.JSX.Element {
     setBusy(true);
     setLastRun(null);
     runGeneration({
-      apiKey: settings.openRouterApiKey,
-      model: settings.imageModel,
+      apiKey: state.settings.openRouterApiKey,
+      model: state.settings.imageModel,
       prompt: prompt.trim(),
       n: Math.min(count, maxCount),
       aspectRatio: aspect === '' ? undefined : aspect,
+      inputImageIds: [],
       signal: controller.signal,
     })
-      .then(setLastRun, (error: unknown) => {
-        toastError('Image generation failed', error);
+      .then(setLastRun, (runError: unknown) => {
+        toastError('Image generation failed', runError);
         setLastRun({
           id: 'failed',
+          kind: 'generate',
           prompt,
-          model: settings.imageModel,
+          model: state.settings.imageModel,
+          inputImageIds: [],
           requestedCount: count,
           receivedCount: 0,
           filteredCount: 0,
           costUsd: null,
           createdAt: Date.now(),
-          error: errorMessage(error),
+          error: errorMessage(runError),
         });
       })
       .finally(() => {
         setBusy(false);
         abortRef.current = null;
-        setGalleryVersion((v) => v + 1);
+        onFinished();
       });
   };
 
   return (
-    <div className="flex flex-col gap-4">
-      <section
-        aria-label="Generate"
-        className="flex flex-col gap-2 rounded border border-gray-300 p-3"
-      >
-        <p className="text-sm">
-          Model:{' '}
-          <span className="font-mono">
-            {settings.imageModel === '' ? 'No model selected' : settings.imageModel}
-          </span>
-        </p>
-        {limits !== null && !limits.listed && (
-          <div
-            role="alert"
-            className="rounded border border-amber-400 bg-amber-50 p-2 text-amber-900"
+    <section
+      aria-label="Generate"
+      className="flex flex-col gap-2 self-start rounded border border-strong bg-surface p-3"
+    >
+      <p className="text-sm">
+        Model:{' '}
+        <span className="font-mono">
+          {state.settings.imageModel === '' ? 'No model selected' : state.settings.imageModel}
+        </span>
+      </p>
+      {state.limits !== null && !state.limits.listed && (
+        <div
+          role="alert"
+          className="rounded border border-amber-400 bg-warn-surface p-2 text-on-warn-surface"
+        >
+          This model is not listed in OpenRouter&apos;s Images API limits — count is fixed at 1 and
+          no aspect ratio is sent.
+        </div>
+      )}
+      <label htmlFor="prompt" className="font-semibold">
+        Prompt
+      </label>
+      <textarea
+        id="prompt"
+        className="rounded border border-strong bg-canvas p-2 text-ink"
+        rows={3}
+        value={prompt}
+        onChange={(e) => {
+          setPrompt(e.target.value);
+        }}
+      />
+      <div className="flex gap-4">
+        <label>
+          Count{' '}
+          <select
+            aria-label="Count"
+            className="rounded border border-strong bg-canvas text-ink"
+            value={Math.min(count, maxCount)}
+            onChange={(e) => {
+              setCount(Number(e.target.value));
+            }}
           >
-            This model is not listed in OpenRouter&apos;s Images API limits — count is fixed at 1
-            and no aspect ratio is sent.
-          </div>
-        )}
-        <label htmlFor="prompt" className="font-semibold">
-          Prompt
+            {Array.from({ length: maxCount }, (_, i) => i + 1).map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
         </label>
-        <textarea
-          id="prompt"
-          className="rounded border p-2"
-          rows={3}
-          value={prompt}
-          onChange={(e) => {
-            setPrompt(e.target.value);
-          }}
-        />
-        <div className="flex gap-4">
+        {state.limits !== null && state.limits.aspectRatios.length > 0 && (
           <label>
-            Count{' '}
+            Aspect{' '}
             <select
-              aria-label="Count"
-              value={Math.min(count, maxCount)}
+              aria-label="Aspect ratio"
+              className="rounded border border-strong bg-canvas text-ink"
+              value={aspect}
               onChange={(e) => {
-                setCount(Number(e.target.value));
+                setAspect(e.target.value);
               }}
             >
-              {Array.from({ length: maxCount }, (_, i) => i + 1).map((n) => (
-                <option key={n} value={n}>
-                  {n}
+              <option value="">model default</option>
+              {state.limits.aspectRatios.map((a) => (
+                <option key={a} value={a}>
+                  {a}
                 </option>
               ))}
             </select>
           </label>
-          {limits !== null && limits.aspectRatios.length > 0 && (
-            <label>
-              Aspect{' '}
-              <select
-                aria-label="Aspect ratio"
-                value={aspect}
-                onChange={(e) => {
-                  setAspect(e.target.value);
-                }}
-              >
-                <option value="">model default</option>
-                {limits.aspectRatios.map((a) => (
-                  <option key={a} value={a}>
-                    {a}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
+        )}
+      </div>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          className="rounded bg-accent px-3 py-1 text-on-accent disabled:opacity-50"
+          disabled={reason !== null || busy}
+          onClick={onGenerate}
+        >
+          {busy ? 'Generating…' : 'Generate'}
+        </button>
+        {busy && (
           <button
             type="button"
-            className="rounded bg-blue-700 px-3 py-1 text-white disabled:opacity-50"
-            disabled={reason !== null || busy}
-            onClick={onGenerate}
+            className="rounded border border-strong px-3 py-1"
+            onClick={() => {
+              abortRef.current?.abort(new DOMException('Generation cancelled', 'AbortError'));
+            }}
           >
-            {busy ? 'Generating…' : 'Generate'}
+            Cancel
           </button>
-          {busy && (
-            <button
-              type="button"
-              className="rounded border px-3 py-1"
-              onClick={() => {
-                abortRef.current?.abort(new DOMException('Generation cancelled', 'AbortError'));
-              }}
-            >
-              Cancel
-            </button>
-          )}
-          {reason !== null && !busy && <span className="text-sm text-gray-700">{reason}</span>}
-        </div>
-        {lastRun !== null && (
-          <div role="status" className={lastRun.error === null ? 'text-green-800' : 'text-red-800'}>
-            {lastRun.error === null ? (
-              <>
-                Received {lastRun.receivedCount} of {lastRun.requestedCount}.{' '}
-                {lastRun.filteredCount > 0 &&
-                  `${String(lastRun.filteredCount)} of ${String(lastRun.receivedCount + lastRun.filteredCount)} candidates were filtered. `}
-                Cost: {lastRun.costUsd === null ? 'not reported' : `$${lastRun.costUsd.toFixed(4)}`}
-              </>
-            ) : (
-              <>Run failed: {lastRun.error}</>
-            )}
-          </div>
         )}
-      </section>
-      <Gallery version={galleryVersion} />
-    </div>
+        {reason !== null && !busy && <span className="text-sm text-muted">{reason}</span>}
+      </div>
+      <RunStatus run={lastRun} />
+    </section>
   );
 }

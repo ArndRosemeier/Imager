@@ -8,6 +8,28 @@
       content="Imager — a local-first image generation and refinement app powered by OpenRouter."
     />
     <title>Imager</title>
+    <!--
+      THE anti-flash theme bootstrap — the ONE inline script in this app.
+      It must run BEFORE first paint: a persisted "light" choice has to be on
+      <html> already, otherwise the dark default paints first and the app
+      flashes. The key and the default MUST agree with src/lib/theme.ts
+      (pinned by tests/architecture/theme-startup.test.ts). localStorage is the
+      source of truth precisely because it is readable synchronously here.
+      Everything else (applying, persisting, watching) lives in src/lib/theme.ts.
+    -->
+    <script>
+      (function () {
+        var stored = null;
+        try {
+          stored = window.localStorage.getItem('imager.theme');
+        } catch (error) {
+          stored = null;
+        }
+        var theme = stored === 'light' ? 'light' : 'dark';
+        document.documentElement.classList.toggle('dark', theme === 'dark');
+        document.documentElement.style.colorScheme = theme;
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

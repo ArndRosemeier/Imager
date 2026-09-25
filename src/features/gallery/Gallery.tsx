@@ -17,7 +17,7 @@ function Thumb({ image, onOpen }: { image: StoredImage; onOpen: () => void }): R
       </button>
       <figcaption className="text-xs">
         <span className="line-clamp-2">{image.prompt}</span>
-        <span className="block font-mono text-gray-500">{image.model}</span>
+        <span className="block font-mono text-muted">{image.model}</span>
       </figcaption>
     </figure>
   );
@@ -27,13 +27,16 @@ function Lightbox(props: {
   image: StoredImage;
   onClose: () => void;
   onDeleted: () => void;
+  onRefine?: (() => void) | undefined;
 }): React.JSX.Element {
   const { image } = props;
   const url = useImageUrl(image);
   const [run, setRun] = useState<Run | undefined>(undefined);
   useEffect(() => {
     getRun(image.runId).then(setRun, (error: unknown) => {
-      toastError('Could not load the run for this image', error);
+      // An uploaded image has no run (runId ''), so there is nothing to load
+      // and nothing to report.
+      if (image.runId !== '') toastError('Could not load the run for this image', error);
     });
   }, [image.runId]);
   const onDelete = (): void => {
@@ -45,7 +48,7 @@ function Lightbox(props: {
     <div
       role="dialog"
       aria-label="Image details"
-      className="fixed inset-0 z-10 overflow-auto bg-black/80 p-6 text-white"
+      className="fixed inset-0 z-10 overflow-auto bg-black/85 p-6 text-white"
     >
       {url !== null && <img src={url} alt={image.prompt} className="mx-auto max-h-[70vh]" />}
       <p className="mt-2">{image.prompt}</p>
@@ -54,20 +57,29 @@ function Lightbox(props: {
         {new Date(image.createdAt).toLocaleString()} · {image.width}×{image.height} · run cost{' '}
         {run?.costUsd == null ? 'not reported' : `$${run.costUsd.toFixed(4)}`}
       </p>
-      <div className="mt-2 flex gap-2">
+      <div className="mt-2 flex flex-wrap gap-2">
         {url !== null && (
           <a
-            className="rounded bg-blue-700 px-3 py-1"
+            className="rounded bg-accent px-3 py-1 text-on-accent"
             href={url}
             download={`imager-${image.id}.${extensionFor(image.mimeType)}`}
           >
             Download
           </a>
         )}
-        <button type="button" className="rounded bg-red-700 px-3 py-1" onClick={onDelete}>
+        {props.onRefine !== undefined && (
+          <button type="button" className="rounded bg-accent px-3 py-1 text-on-accent" onClick={props.onRefine}>
+            Refine this
+          </button>
+        )}
+        <button
+          type="button"
+          className="rounded bg-danger px-3 py-1 text-on-accent"
+          onClick={onDelete}
+        >
           Delete
         </button>
-        <button type="button" className="rounded border px-3 py-1" onClick={props.onClose}>
+        <button type="button" className="rounded border border-strong px-3 py-1" onClick={props.onClose}>
           Close
         </button>
       </div>
@@ -76,7 +88,14 @@ function Lightbox(props: {
 }
 
 /** Newest-first grid; `version` bumps re-read the table. */
-export function Gallery({ version }: { version: number }): React.JSX.Element {
+export function Gallery({
+  version,
+  onRefine,
+}: Readonly<{
+  version: number;
+  /** Present → the lightbox offers "Refine this" for the open image. */
+  onRefine?: ((imageId: string) => void) | undefined;
+}>): React.JSX.Element {
   const [images, setImages] = useState<StoredImage[] | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const [localVersion, setLocalVersion] = useState(0);
@@ -90,10 +109,10 @@ export function Gallery({ version }: { version: number }): React.JSX.Element {
   if (images === null) return <p>Loading gallery…</p>;
   const open = images.find((i) => i.id === openId);
   return (
-    <section aria-label="Gallery">
-      <h2 className="mb-2 text-lg font-semibold">Gallery</h2>
+    <section aria-label="Gallery" className="flex flex-col gap-2">
+      <h2 className="text-lg font-semibold">Gallery</h2>
       {images.length === 0 && <p>No images yet.</p>}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
         {images.map((image) => (
           <Thumb
             key={image.id}
@@ -114,6 +133,14 @@ export function Gallery({ version }: { version: number }): React.JSX.Element {
             setOpenId(null);
             setLocalVersion((v) => v + 1);
           }}
+          onRefine={
+            onRefine === undefined
+              ? undefined
+              : () => {
+                  setOpenId(null);
+                  onRefine(open.id);
+                }
+          }
         />
       )}
     </section>

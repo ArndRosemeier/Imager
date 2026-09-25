@@ -45,7 +45,7 @@ it('all candidates filtered is a loud failure, not an empty success', async () =
   await expect(generateImages(req)).rejects.toThrow(/all 2 candidates were filtered/);
 });
 
-it('/images/models limits: n max, aspect ratios, missing n → 1, unlisted → loud 1', async () => {
+it('/images/models limits: n max, aspect ratios, refs max, missing n → 1, unlisted → loud 1', async () => {
   const fixture = readFileSync('tests/fixtures/images-models-trimmed.json', 'utf8');
   vi.stubGlobal('fetch', () => Promise.resolve(new Response(fixture, { status: 200 })));
   const all = await listImageModelLimits('');
@@ -54,17 +54,22 @@ it('/images/models limits: n max, aspect ratios, missing n → 1, unlisted → l
     listed: true,
     maxCount: 10,
     aspectRatios: ['1:1', '3:2', '2:3', 'auto'],
+    maxReferences: 16,
   });
   expect(limitsFor(all, 'recraft/recraft-v3').maxCount).toBe(6);
   expect(limitsFor(all, 'krea/krea-2-medium').maxCount).toBe(1);
+  // 53 of the live 55 publish an `input_references` max; the 2 that do not
+  // cannot refine, and `maxReferences: 0` is how the UI knows.
   expect(limitsFor(all, 'meta/muse-image')).toEqual({
     listed: true,
     maxCount: 1,
     aspectRatios: [],
+    maxReferences: 0,
   });
   expect(limitsFor(all, 'nobody/unlisted')).toEqual({
     listed: false,
     maxCount: 1,
     aspectRatios: [],
+    maxReferences: 0,
   });
 });

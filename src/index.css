@@ -1,1 +1,109 @@
 @import 'tailwindcss';
+
+/*
+ * THE theme seam's CSS half (src/lib/theme.ts is the JS half): a CLASS-based
+ * dark variant. The `dark` class lives on <html> and is applied before first
+ * paint by the inline script in index.html (nothing stored → dark).
+ */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * Semantic surface colours as theme variables, so a component names a ROLE
+ * (`bg-surface`) instead of repeating a light/dark utility pair on every
+ * element — which is how one surface gets missed in one theme.
+ */
+:root {
+  --canvas: #f8fafc;
+  --surface: #ffffff;
+  --surface-muted: #f1f5f9;
+  --edge: #d1d5db;
+  --edge-strong: #9ca3af;
+  --ink: #111827;
+  --ink-muted: #4b5563;
+  --accent: #1d4ed8;
+  --on-accent: #ffffff;
+  --danger: #b91c1c;
+  --danger-surface: #fef2f2;
+  --on-danger-surface: #7f1d1d;
+  --warn-surface: #fffbeb;
+  --on-warn-surface: #78350f;
+  --ok: #166534;
+}
+
+.dark {
+  --canvas: #0b1120;
+  --surface: #16202e;
+  --surface-muted: #1e293b;
+  --edge: #334155;
+  --edge-strong: #475569;
+  --ink: #e5e7eb;
+  --ink-muted: #94a3b8;
+  --accent: #3b82f6;
+  --on-accent: #0b1120;
+  --danger: #f87171;
+  --danger-surface: #450a0a;
+  --on-danger-surface: #fecaca;
+  --warn-surface: #452a03;
+  --on-warn-surface: #fde68a;
+  --ok: #4ade80;
+}
+
+@utility bg-canvas {
+  background-color: var(--canvas);
+}
+@utility bg-surface {
+  background-color: var(--surface);
+}
+@utility bg-subtle {
+  background-color: var(--surface-muted);
+}
+@utility text-ink {
+  color: var(--ink);
+}
+@utility text-muted {
+  color: var(--ink-muted);
+}
+@utility border-strong {
+  border-color: var(--edge);
+}
+@utility bg-accent {
+  background-color: var(--accent);
+}
+@utility text-on-accent {
+  color: var(--on-accent);
+}
+@utility text-ok {
+  color: var(--ok);
+}
+@utility text-danger {
+  color: var(--danger);
+}
+@utility bg-danger {
+  background-color: var(--danger);
+}
+@utility bg-danger-surface {
+  background-color: var(--danger-surface);
+}
+@utility text-on-danger-surface {
+  color: var(--on-danger-surface);
+}
+@utility border-danger {
+  border-color: var(--danger);
+}
+@utility bg-warn-surface {
+  background-color: var(--warn-surface);
+}
+@utility text-on-warn-surface {
+  color: var(--on-warn-surface);
+}
+
+/* The page itself fills the window in both themes (no white band under a
+ * short page, no light flash at the edges). */
+html,
+body {
+  min-height: 100%;
+}
+body {
+  background-color: var(--canvas);
+  color: var(--ink);
+}
