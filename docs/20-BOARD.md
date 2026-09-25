@@ -25,12 +25,14 @@ the subagent registry and `pgrep -af "vites[t]"` before acting on it.
 | 4 refinement chat (ledger row 12) | `c819d37` / `52da43e` | Full gate exit 0 (15 files / 61 tests), log `.gate-logs/cos-verify-c819d37.log`. Own injection (the no-fallback rule, distinct from the writer's memory arm): image-model fallback injected into `chatBlockReason`, sha 53dd4a12→92629bda → pin `an empty refinement pick disables Send … falls back to NOTHING` RED, restored 53dd4a12. **Slice 4 is LIVE** (its build wrote through the `~/apps/imager` symlink; served JS sha `10b85f36…` == local dist).
 | fix encode bug (ledger rows 14-15) | `ef1a5b0` | Full gate exit 0 (16 files / 67 tests), log `.gate-logs/cos-verify-ef1a5b0.log`. Own real-Chrome reproduction: OffscreenCanvas `toDataURL` = undefined, old call threw the owner's exact TypeError, `convertToBlob` produced a real 1024×512 PNG from 2000×1000. LIVE: public JS sha `1a19eec0…` == local dist. |
 | base image in chat (ledger row 16) | `baa4a9e` | Full gate exit 0 (16 files / 72 tests, `.gate-logs/chat-base-image2.log`); a first run was RED on **eslint only** (an `any` from `expect.stringContaining` in a new test) and was fixed forward before any push. Own injection: the original `content: text` branch restored, sha 15bee9d5→a036c9bc → 3 pins RED, restored 15bee9d5. LIVE: public JS sha `a7c49957…` == local dist (a first public read showed a transient stale-edge hash; re-read matched). |
+| gallery → chat + full-view layout (ledger row 17) | `bb367d9` / `d79934f` | Full gate exit 0 (18 files / 79 tests, `.gate-logs/cos-verify-bb367d9.log`). Layout verified from code + writer's browser evidence: image 734×734 in a 1400×900 viewport (old `70vh` cap = 630); the cap string is gone from `src/` and the built CSS. LIVE: public JS sha `58bdc257…` == local dist. |
 ## In flight
 None.
 
 ## Queue (plan: owner-approved 2026-09-25)
 2. Slice 5 — library/run log/cost/export.
-3. Slice 6 — hardening (error/empty-state pass) + README.
+3. Hardening (error/empty-state pass) + README.
+4. Optional future: image streaming/partial previews; prompt expansion; light-theme browser pass on the lightbox (row 17 note 3).
 
 ## Open owner fork
 None. (Auto-routers stay — ledger row 7.)
