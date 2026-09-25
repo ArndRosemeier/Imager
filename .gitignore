@@ -1,0 +1,26 @@
+# Deps and build output
+node_modules
+dist
+dist-ssr
+coverage
+
+# Gate run logs: the gate writes them INTO the workspace (GATE_LOGDIR) so a
+# run's evidence survives — /tmp is per-call in some sandboxes.
+.gate-logs/
+
+# The suite lock. Resolved from the git common dir so it is one lock for the
+# main tree and every future worktree.
+.imager-lock
+
+# Future writer worktrees (in-repo; eslint.config.js ignores this path).
+worktrees/
+
+# Local-only files
+*.local
+*.log
+logs
+
+# Editor directories and files
+.vscode/*
+.idea
+.DS_Store
