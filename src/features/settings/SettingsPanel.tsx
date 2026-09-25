@@ -10,7 +10,7 @@ import {
   type OpenRouterModel,
 } from '@/llm/models';
 import { ModelPicker } from '@/features/settings/ModelPicker';
-import { errorMessage } from '@/lib/errors';
+import { errorMessage, toError } from '@/lib/errors';
 import { toastError, toastSuccess } from '@/lib/toast';
 
 export function SettingsPanel(): React.JSX.Element {
@@ -37,7 +37,7 @@ export function SettingsPanel(): React.JSX.Element {
         loadModels(s.openRouterApiKey);
       },
       (error: unknown) => {
-        setLoadError(error instanceof Error ? error : new Error(String(error)));
+        setLoadError(toError(error));
       },
     );
   }, [loadModels]);

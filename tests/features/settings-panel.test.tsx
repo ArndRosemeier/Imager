@@ -23,7 +23,7 @@ function stubFetch(keyResponse: () => Response): void {
 
 it('shows "No model selected" for both pickers and filters by capability', async () => {
   stubFetch(() => jsonResponse({}, 500));
-  render(<App />);
+  render(<App initialTab="Settings" />);
   const image = await screen.findByRole('region', { name: 'Image model' });
   const refine = screen.getByRole('region', { name: 'Refinement chat model' });
   expect(within(image).getByText('No model selected')).toBeInTheDocument();
@@ -44,7 +44,7 @@ it('shows "No model selected" for both pickers and filters by capability', async
 
 it('Test key: 401 surfaces a visible error', async () => {
   stubFetch(() => jsonResponse({ error: { code: 401, message: 'User not found.' } }, 401));
-  render(<App />);
+  render(<App initialTab="Settings" />);
   const user = userEvent.setup();
   await user.type(
     await screen.findByLabelText('OpenRouter API key', { selector: 'input' }),
@@ -59,7 +59,7 @@ it('Test key: 200 surfaces a visible success', async () => {
   stubFetch(() =>
     jsonResponse({ data: { label: 'sk-or-v1-abc...xyz', limit_remaining: null, usage: 0 } }),
   );
-  render(<App />);
+  render(<App initialTab="Settings" />);
   const user = userEvent.setup();
   await user.type(
     await screen.findByLabelText('OpenRouter API key', { selector: 'input' }),
@@ -71,6 +71,6 @@ it('Test key: 200 surfaces a visible success', async () => {
 
 it('a /models failure is a visible error, not an empty picker', async () => {
   vi.stubGlobal('fetch', () => Promise.resolve(jsonResponse({ nope: true })));
-  render(<App />);
+  render(<App initialTab="Settings" />);
   expect(await screen.findByText(/Model list failed to load/)).toBeInTheDocument();
 });
