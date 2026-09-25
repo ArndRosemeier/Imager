@@ -1,14 +1,25 @@
 import { useEffect, useRef, useState } from 'react';
 
 import { getConversation, listConversations } from '@/db/chatRepo';
-import { getImage } from '@/db/imageRepo';
+import { getImage, saveUploadedImage } from '@/db/imageRepo';
 import { conversationCost, type ChatMessage, type Conversation } from '@/domain/chat';
 import type { StoredImage } from '@/domain/image';
 import { runChatTurn } from '@/features/chat/runChatTurn';
 import { chatBlockReason, useChat } from '@/features/chat/useChat';
+import { IMAGE_ACCEPT } from '@/features/refine/reference';
 import { useImageUrl } from '@/features/gallery/useImageUrl';
-import { toError } from '@/lib/errors';
+import { errorMessage, toError } from '@/lib/errors';
 import { toastError } from '@/lib/toast';
+
+/**
+ * A small thumb for a staged attachment, so the owner can see what the next
+ * turn will actually send.
+ */
+function AttachedThumb({ image }: Readonly<{ image: StoredImage }>): React.JSX.Element {
+  const url = useImageUrl(image);
+  if (url === null) return <span className="text-xs text-muted">Loading…</span>;
+  return <img src={url} alt={image.prompt} className="size-10 rounded object-cover" />;
+}
 
 /** One stored image of an assistant turn, with its object URL. */
 function ChatImage({ image }: Readonly<{ image: StoredImage }>): React.JSX.Element {
@@ -117,6 +128,16 @@ export function ChatArea(): React.JSX.Element {
   const [openId, setOpenId] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [pendingText, setPendingText] = useState<string | null>(null);
+  /**
+   * The images attached to the NEXT message ("an image as the base of the
+   * chat", ledger row 16). They become the user message's own `imageIds`, so
+   * they persist across later turns through the ordinary history replay —
+   * attach once and keep refining from it.
+   */
+  const [attached, setAttached] = useState<StoredImage[]>([]);
+  const [attachError, setAttachError] = useState<string | null>(null);
+  const [attachBusy, setAttachBusy] = useState(false);
+  const fileRef = useRef<HTMLInputElement | null>(null);
   const [busy, setBusy] = useState(false);
   const [version, setVersion] = useState(0);
   const [loadError, setLoadError] = useState<Error | null>(null);
@@ -176,20 +197,50 @@ export function ChatArea(): React.JSX.Element {
   if (loadError !== null) throw loadError;
   if (state === null || conversations === null) return <p>Loading chat…</p>;
 
-  const reason = chatBlockReason(state, draft);
+  const reason = chatBlockReason(state, draft, attached.length > 0);
+  /**
+   * The conversation's BASE images: every image attached to a user turn. They
+   * are what makes "an image as the base of the chat" true across turns — the
+   * first user message's attachment is replayed on every later turn.
+   */
+  const baseImages = (open?.messages ?? []).flatMap((message) =>
+    message.role === 'user' ? message.imageIds : [],
+  );
+
+  const onAttach = async (file: File): Promise<void> => {
+    setAttachError(null);
+    setAttachBusy(true);
+    try {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const image = await saveUploadedImage({ bytes, mimeType: file.type, fileName: file.name });
+      setAttached((prev) => [...prev, image]);
+      // The upload is a gallery row now, so the gallery shows it too.
+      setVersion((v) => v + 1);
+    } catch (uploadFailure: unknown) {
+      setAttachError(errorMessage(uploadFailure));
+      toastError('Could not attach that image', uploadFailure);
+    } finally {
+      setAttachBusy(false);
+      if (fileRef.current !== null) fileRef.current.value = '';
+    }
+  };
 
   const onSend = (): void => {
     const text = draft.trim();
+    const attachedNow = attached;
+    const attachIds = attachedNow.map((image) => image.id);
     const controller = new AbortController();
     abortRef.current = controller;
     setBusy(true);
     setPendingText(text);
     setDraft('');
+    setAttached([]);
     runChatTurn({
       apiKey: state.settings.openRouterApiKey,
       model: state.settings.refineChatModel,
       conversationId: openId,
       text,
+      imageIds: attachIds,
       signal: controller.signal,
     })
       .then(
@@ -207,6 +258,8 @@ export function ChatArea(): React.JSX.Element {
           // user's text so nothing they typed is lost.
           setPendingText(null);
           setDraft(text);
+          // Give the attachments back too: nothing the owner chose is lost.
+          setAttached(attachedNow);
           toastError('Chat turn failed', turnFailure);
           setVersion((v) => v + 1);
         },
@@ -289,6 +342,31 @@ export function ChatArea(): React.JSX.Element {
         </ol>
         <div ref={bottomRef} />
 
+        {baseImages.length > 0 && (
+          <p className="text-sm text-muted">
+            Base image{baseImages.length === 1 ? '' : 's'}: {String(baseImages.length)} attached —
+            every later turn keeps working from {baseImages.length === 1 ? 'it' : 'them'}.
+          </p>
+        )}
+        {attached.length > 0 && (
+          <ul aria-label="Attached images" className="flex flex-wrap gap-2">
+            {attached.map((image) => (
+              <li key={image.id} className="flex items-center gap-2 rounded border border-strong p-1">
+                <AttachedThumb image={image} />
+                <button
+                  type="button"
+                  className="text-sm text-danger"
+                  aria-label={`Remove attached image ${image.prompt}`}
+                  onClick={() => {
+                    setAttached((prev) => prev.filter((row) => row.id !== image.id));
+                  }}
+                >
+                  Remove
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
         <label htmlFor="chat-message" className="font-semibold">
           Message
         </label>
@@ -301,7 +379,28 @@ export function ChatArea(): React.JSX.Element {
             setDraft(e.target.value);
           }}
         />
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            ref={fileRef}
+            type="file"
+            accept={IMAGE_ACCEPT}
+            aria-label="Attach an image"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file !== undefined) void onAttach(file);
+            }}
+          />
+          <button
+            type="button"
+            className="rounded border border-strong px-3 py-1"
+            disabled={attachBusy || busy}
+            onClick={() => {
+              fileRef.current?.click();
+            }}
+          >
+            {attachBusy ? 'Attaching…' : 'Attach image'}
+          </button>
           <button
             type="button"
             className="rounded bg-accent px-3 py-1 text-on-accent disabled:opacity-50"
@@ -323,6 +422,11 @@ export function ChatArea(): React.JSX.Element {
           )}
           {reason !== null && !busy && <span className="text-sm text-muted">{reason}</span>}
         </div>
+        {attachError !== null && (
+          <p role="alert" className="text-sm text-danger">
+            {attachError}
+          </p>
+        )}
       </section>
     </div>
   );

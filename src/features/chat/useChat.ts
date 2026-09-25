@@ -57,8 +57,16 @@ export function useChat(): { state: ChatPanelState | null; error: Error | null }
  * model, because this is a different endpoint — the image model may be a
  * generation-only model that cannot produce text at all. An empty refinement
  * pick is a visible blocker, never a substitution.
+ *
+ * `hasAttachment` (ledger row 16): an attached image IS a message — "start from
+ * this" is optional when the picture speaks for itself — so the empty-draft
+ * refusal does not apply when one is attached.
  */
-export function chatBlockReason(state: ChatPanelState, draft: string): string | null {
+export function chatBlockReason(
+  state: ChatPanelState,
+  draft: string,
+  hasAttachment = false,
+): string | null {
   const model = state.settings.refineChatModel;
   if (state.settings.openRouterApiKey === '') return 'Enter an OpenRouter API key in Settings.';
   if (model === '') {
@@ -73,6 +81,6 @@ export function chatBlockReason(state: ChatPanelState, draft: string): string | 
   if (!canRefineViaChat(found)) {
     return `The refinement model “${model}” cannot answer with text AND images, so it cannot chat-refine — pick another refinement model in Settings.`;
   }
-  if (draft.trim() === '') return 'Type a message to send.';
+  if (draft.trim() === '' && !hasAttachment) return 'Type a message, or attach an image.';
   return null;
 }

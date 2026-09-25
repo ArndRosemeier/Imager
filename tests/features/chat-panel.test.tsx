@@ -229,6 +229,67 @@ it('the SECOND turn carries the first user text AND the first image, re-encoded 
   await expect(db.images.count()).resolves.toBe(2);
 });
 
+it('an attached image rides the user message and stays the base for later turns', async () => {
+  let call = 0;
+  stubFetch(() => {
+    call += 1;
+    return chatAnswer(call === 1 ? 'Started from your picture.' : 'Made it darker.');
+  });
+  await updateSettings({ openRouterApiKey: 'sk', refineChatModel: CHAT_MODEL });
+  render(<App initialTab="Chat" />);
+  const user = userEvent.setup();
+
+  // Attach a real file through the composer's own control.
+  const file = new File([new Uint8Array([1, 2, 3])], 'base.png', { type: 'image/png' });
+  await user.upload(await screen.findByLabelText('Attach an image'), file);
+  expect(await screen.findByRole('list', { name: 'Attached images' })).toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'Send' }));
+
+  expect(await screen.findByText('Started from your picture.')).toBeInTheDocument();
+  const first = JSON.parse(posts[0] ?? '') as {
+    messages: { role: string; content: unknown }[];
+  };
+  // The bug this replaced: `content` was the bare string and the image vanished.
+  expect(first.messages[0]).toMatchObject({ role: 'user' });
+  const firstContent = first.messages[0]?.content as { type: string; image_url?: { url: string } }[];
+  expect(firstContent).toHaveLength(1);
+  const basePart = firstContent[0];
+  expect(basePart?.type).toBe('image_url');
+  expect(basePart?.image_url?.url.startsWith('data:image/png;base64,')).toBe(true);
+
+  // Turn 2 needs NO new attachment: the base image persists, so the model still
+  // sees the picture it was given.
+  await send(user, 'now make it darker');
+  expect(await screen.findByText('Made it darker.')).toBeInTheDocument();
+  const second = JSON.parse(posts[1] ?? '') as {
+    messages: { role: string; content: unknown }[];
+  };
+  expect(second.messages[0]).toMatchObject({ role: 'user' });
+  expect(Array.isArray(second.messages[0]?.content)).toBe(true);
+  const parts = second.messages[0]?.content as { type: string }[];
+  expect(parts.some((part) => part.type === 'image_url')).toBe(true);
+
+  // The run records the base image as sent back, and it is in the gallery.
+  const runs = await db.runs.toArray();
+  const secondRun = runs.find((run) => run.prompt === 'now make it darker');
+  expect(secondRun?.inputImageIds.length).toBeGreaterThan(0);
+  await expect(db.images.count()).resolves.toBe(3); // the uploaded base + two generated
+});
+
+it('an image-only message is allowed (the picture speaks for itself)', async () => {
+  stubFetch(() => chatAnswer('Changed it.'));
+  await updateSettings({ openRouterApiKey: 'sk', refineChatModel: CHAT_MODEL });
+  render(<App initialTab="Chat" />);
+  const user = userEvent.setup();
+  const file = new File([new Uint8Array([1, 2, 3])], 'base.png', { type: 'image/png' });
+  await user.upload(await screen.findByLabelText('Attach an image'), file);
+  const sendButton = screen.getByRole('button', { name: 'Send' });
+  expect(sendButton).toBeEnabled();
+  await user.click(sendButton);
+  expect(await screen.findByText('Changed it.')).toBeInTheDocument();
+  expect(posts).toHaveLength(1);
+});
+
 it('a 200 error envelope → toast + the failed turn visible and stored, nothing stored as an image', async () => {
   stubFetch(() => jsonResponse({ error: { code: 400, message: 'Prompt was refused' } }));
   await updateSettings({ openRouterApiKey: 'sk', refineChatModel: CHAT_MODEL });
@@ -247,7 +308,7 @@ it('a 200 error envelope → toast + the failed turn visible and stored, nothing
   expect(conversation?.messages.map((m) => m.role)).toEqual(['user', 'assistant']);
   expect(conversation?.messages[1]?.error).toMatch(/Prompt was refused/);
   // The composer is usable again: the only reason left is the empty draft.
-  expect(screen.getByText('Type a message to send.')).toBeInTheDocument();
+  expect(screen.getByText('Type a message, or attach an image.')).toBeInTheDocument();
 });
 
 it('a completion with no text and no images is a loud failure, and the failed turn is recorded', async () => {

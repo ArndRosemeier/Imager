@@ -20,6 +20,61 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+it('a USER message with an attached image sends multimodal content parts', async () => {
+  stubChat(() =>
+    jsonResponse({
+      model: MODEL,
+      choices: [{ message: { role: 'assistant', content: 'Changed the sky.', images: [{ image_url: { url: DATA_URL } }] } }],
+      usage: { cost: 0.1 },
+    }),
+  );
+  // The owner's "have an image as the base of the chat": a user turn that
+  // CARRIES an image. Before ledger row 16 this branch returned
+  // `content: text` and the image was silently dropped.
+  const messages: ChatTurnMessage[] = [
+    { role: 'user', text: 'start from this', imageDataUrls: [DATA_URL] },
+  ];
+  await chatCompletion({ apiKey: 'sk', model: MODEL, messages });
+
+  const body = JSON.parse(requests[0]?.body ?? '') as { messages: unknown[] };
+  expect(body.messages).toEqual([
+    {
+      role: 'user',
+      content: [
+        { type: 'text', text: 'start from this' },
+        { type: 'image_url', image_url: { url: DATA_URL } },
+      ],
+    },
+  ]);
+});
+
+it('an image-only user message sends the image part and no empty text part', async () => {
+  stubChat(() =>
+    jsonResponse({
+      model: MODEL,
+      choices: [{ message: { role: 'assistant', content: 'ok', images: [] } }],
+    }),
+  );
+  await chatCompletion({
+    apiKey: 'sk',
+    model: MODEL,
+    messages: [{ role: 'user', text: '', imageDataUrls: [DATA_URL] }],
+  });
+  const body = JSON.parse(requests[0]?.body ?? '') as { messages: unknown[] };
+  expect(body.messages).toEqual([
+    { role: 'user', content: [{ type: 'image_url', image_url: { url: DATA_URL } }] },
+  ]);
+});
+
+it('a user message with NO image stays a plain string', async () => {
+  stubChat(() =>
+    jsonResponse({ model: MODEL, choices: [{ message: { role: 'assistant', content: 'ok', images: [] } }] }),
+  );
+  await chatCompletion({ apiKey: 'sk', model: MODEL, messages: [{ role: 'user', text: 'hello' }] });
+  const body = JSON.parse(requests[0]?.body ?? '') as { messages: unknown[] };
+  expect(body.messages).toEqual([{ role: 'user', content: 'hello' }]);
+});
+
 it('posts modalities + the messages in order and returns text, image bytes and cost', async () => {
   stubChat(() =>
     jsonResponse({

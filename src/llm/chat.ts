@@ -151,12 +151,32 @@ function imageFromDataUrl(url: string, status: number): ChatImage {
 
 /**
  * One message in the request shape. The image part body comes from the ONE
- * builder (`src/llm/images.ts`); a user message is plain text (this app has no
- * user-supplied chat image in v1).
+ * builder (`src/llm/images.ts`).
+ *
+ * A USER message with attached images sends multimodal `content` parts —
+ * `[{type:'text', text}, {type:'image_url', image_url:{url}}]` — which is how
+ * OpenRouter documents image input on `/chat/completions` (the same part shape
+ * the Images API takes as `input_references`). A user message with NO image
+ * stays a plain string, byte-identical to what it sent before. Attached images
+ * are NEVER dropped silently: that is the whole point of the owner's "have an
+ * image as the base of the chat" (ledger row 16) — before it, this branch
+ * returned `content: text` and an attached image vanished.
+ *
+ * An ASSISTANT message carries its generated images in the `images` field
+ * (OpenAPI `ChatAssistantMessage.images`, valid for requests and responses).
  */
 function requestMessage(message: ChatTurnMessage): Record<string, unknown> {
   const images = message.imageDataUrls ?? [];
-  if (message.role === 'user') return { role: 'user', content: message.text };
+  if (message.role === 'user') {
+    if (images.length === 0) return { role: 'user', content: message.text };
+    return {
+      role: 'user',
+      content: [
+        ...(message.text === '' ? [] : [{ type: 'text', text: message.text }]),
+        ...images.map((dataUrl) => imageUrlPart(dataUrl)),
+      ],
+    };
+  }
   return {
     role: 'assistant',
     content: message.text,

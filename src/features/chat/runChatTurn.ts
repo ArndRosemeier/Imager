@@ -17,6 +17,14 @@ export interface ChatTurnInput {
   /** The open conversation, or null to start a new one. */
   conversationId: string | null;
   text: string;
+  /**
+   * The stored images the owner attached to THIS user message ("an image as
+   * the base of the chat", ledger row 16). They ride the user message itself
+   * (the message model already carries `imageIds`), so every LATER turn replays
+   * them through the same `historyFor` path an assistant image takes — the base
+   * persists for the whole conversation without a second mechanism.
+   */
+  imageIds?: readonly string[] | undefined;
   signal?: AbortSignal | undefined;
 }
 
@@ -96,11 +104,12 @@ export async function runChatTurn(
     throw new Error(`Conversation ${input.conversationId} no longer exists`);
   }
   const now = Date.now();
+  const attached = input.imageIds ?? [];
   const userMessage: ChatMessage = {
     id: crypto.randomUUID(),
     role: 'user',
     text: input.text,
-    imageIds: [],
+    imageIds: [...attached],
     runId: '',
     model: '',
     costUsd: null,
@@ -122,9 +131,9 @@ export async function runChatTurn(
     messages: [...base.messages, userMessage],
   };
   const runId = crypto.randomUUID();
-  // What this turn sent back: every image of the PRIOR turns (the new user
-  // message has none).
-  const sentIds = sentImageIds(base.messages);
+  // What this turn sent back: every image of the PRIOR turns PLUS the ones
+  // attached to this user message (the newly attached base image included).
+  const sentIds = [...sentImageIds(base.messages), ...attached];
 
   try {
     const result = await chatCompletion({
