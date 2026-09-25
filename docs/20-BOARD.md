@@ -16,7 +16,7 @@ the subagent registry and `pgrep -af "vites[t]"` before acting on it.
 | 0 bootstrap (ledger row 1) | `debd338` | Full gate exit 0 (2 files / 2 tests), log `.gate-logs/cos-verify-debd338.log`. Injection: heading renamed → smoke pin RED (exit 1, "Unable to find … heading … Imager"), restored by trap, tree clean. Lock probe: held lock → gate exit 9 VOID. |
 
 ## In flight
-None.
+Slice 1 (ledger row 2) — writer `3e9c1fa9`, main tree, sole writer, based on `754d061`.
 
 ## Queue (plan: owner-approved 2026-09-25)
 1. **Slice 1 — settings + key + model pickers + capability spike.** Settings row
