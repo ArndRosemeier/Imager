@@ -113,18 +113,21 @@ function image(overrides: Partial<StoredImage> & { id: string }): StoredImage {
     createdAt: 1_700_000_000_000,
     runId: 'run-1',
     favorite: false,
+    tags: [],
     ...overrides,
   };
 }
 
 const IMAGES: StoredImage[] = [
   image({ id: 'image-png', bytes: new Uint8Array([9, 8, 7]), mimeType: 'image/png' }),
-  // A FAVOURITE, so the round trip below pins `true` as well as the default.
+  // A FAVOURITE with TAGS, so the round trip below pins `true` and a non-empty
+  // tag list, not just the defaults (docs/17 rows 32/34).
   image({
     id: 'image-jpeg',
     bytes: new Uint8Array([6, 5, 4]),
     mimeType: 'image/jpeg',
     favorite: true,
+    tags: ['orc', 'forest'],
   }),
   image({
     id: 'image-hostile',
@@ -376,7 +379,7 @@ it('ROUND TRIP: the archive alone rebuilds every row, and every pointer resolves
     if (meta === undefined) continue;
     const { fileName, byteLength, sha256, ...row } = meta;
     // `row` IS the `StoredImage` row, minus the bytes — nothing missing, and the
-    // favourite flag travels with it (docs/17 row 32).
+    // favourite flag and the tags travel with it (docs/17 rows 32/34).
     expect(row).toEqual({
       id: source.id,
       mimeType: source.mimeType,
@@ -388,6 +391,7 @@ it('ROUND TRIP: the archive alone rebuilds every row, and every pointer resolves
       createdAt: source.createdAt,
       runId: source.runId,
       favorite: source.favorite,
+      tags: source.tags,
     });
     expect(entries[fileName] !== undefined).toBe(true);
     expect(byteLength).toBe(source.bytes.length);
@@ -443,6 +447,11 @@ it('the per-image manifest entry schema refuses a row missing its integrity fiel
   // (docs/17 row 32), and the flag survives when it IS there.
   expect(exportManifestImageSchema.parse(complete).favorite).toBe(false);
   expect(exportManifestImageSchema.parse({ ...complete, favorite: true }).favorite).toBe(true);
+  // `tags` is ADDITIVE in the same way (docs/17 row 34): an entry written before
+  // tags existed (no such key) reads as UNTAGGED rather than failing the strict
+  // schema, and a real list survives verbatim when it IS there.
+  expect(exportManifestImageSchema.parse(complete).tags).toEqual([]);
+  expect(exportManifestImageSchema.parse({ ...complete, tags: ['orc'] }).tags).toEqual(['orc']);
   for (const field of ['fileName', 'byteLength', 'sha256', 'runId', 'createdAt', 'source']) {
     const { [field as keyof typeof complete]: _dropped, ...rest } = complete;
     expect(exportManifestImageSchema.safeParse(rest).success, `missing ${field}`).toBe(false);

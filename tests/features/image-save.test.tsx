@@ -64,6 +64,7 @@ beforeEach(async () => {
     createdAt: 1,
     runId: '',
     favorite: false,
+    tags: [],
   });
 });
 

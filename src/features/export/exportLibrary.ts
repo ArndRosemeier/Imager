@@ -208,6 +208,13 @@ export const exportManifestImageSchema = z.strictObject({
    * tests/import/importLibrary.test.ts.
    */
   favorite: z.boolean().default(false),
+  /**
+   * The owner's tags (docs/17 row 34), verbatim from the stored row. Like
+   * `favorite`, `.default([])` means an archive exported BEFORE tags existed
+   * (no such key) imports as UNTAGGED instead of failing the strict schema —
+   * the meaning the absence already had. Pinned by the import suite.
+   */
+  tags: z.array(z.string()).default([]),
   /** The stored byte length. */
   byteLength: z.number().int().nonnegative(),
   /** Lowercase hex SHA-256 of the stored bytes. */
@@ -289,6 +296,7 @@ export async function buildManifest(
       createdAt: image.createdAt,
       runId: image.runId,
       favorite: image.favorite,
+      tags: image.tags,
       byteLength: image.bytes.length,
       sha256: await sha256Hex(image.bytes),
     })),

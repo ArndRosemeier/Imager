@@ -8,7 +8,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-it('the v1 settings row survives the v5 bump (images + runs + conversations)', async () => {
+it('the v1 settings row survives the v6 bump (images + runs + conversations)', async () => {
   const name = 'imager-migration-test';
   const v1 = new Dexie(name);
   v1.version(1).stores({ settings: 'id' });
@@ -16,23 +16,24 @@ it('the v1 settings row survives the v5 bump (images + runs + conversations)', a
   await v1.table('settings').put(row);
   v1.close();
 
-  const v5 = new ImagerDb(name);
-  await expect(v5.settings.get(SETTINGS_ID)).resolves.toEqual(row);
-  expect(v5.verno).toBe(5);
-  await expect(v5.images.count()).resolves.toBe(0);
-  await expect(v5.runs.count()).resolves.toBe(0);
-  await expect(v5.conversations.count()).resolves.toBe(0);
-  v5.close();
+  const v6 = new ImagerDb(name);
+  await expect(v6.settings.get(SETTINGS_ID)).resolves.toEqual(row);
+  expect(v6.verno).toBe(6);
+  await expect(v6.images.count()).resolves.toBe(0);
+  await expect(v6.runs.count()).resolves.toBe(0);
+  await expect(v6.conversations.count()).resolves.toBe(0);
+  v6.close();
 });
 
 /**
- * The v5 bump adds `StoredImage.favorite`. Rows were written by v1 (settings),
- * v3 (images/runs) and v4 (conversations), and only the EXISTING `images` index
- * set is redeclared, so the pin is that nothing moves: every row reads back at
- * v5 with its own meaning — the v3 image WITHOUT a `favorite` key.
+ * The v6 bump adds `StoredImage.tags` (the v5 bump before it added `favorite`).
+ * Rows were written by v1 (settings), v3 (images/runs) and v4 (conversations),
+ * and only the EXISTING `images` index set is redeclared, so the pin is that
+ * nothing moves: every row reads back at v6 with its own meaning — the v3 image
+ * WITHOUT a `favorite` key and WITHOUT a `tags` key.
  */
-it('v1, v3 and v4 rows survive the v5 favourites bump untouched', async () => {
-  const name = 'imager-migration-test-v5';
+it('v1, v3 and v4 rows survive the v6 tags bump untouched', async () => {
+  const name = 'imager-migration-test-v6';
   const v1 = new Dexie(name);
   v1.version(1).stores({ settings: 'id' });
   const row = { id: SETTINGS_ID, openRouterApiKey: 'sk-1', imageModel: 'a/b', refineChatModel: '' };
@@ -79,19 +80,21 @@ it('v1, v3 and v4 rows survive the v5 favourites bump untouched', async () => {
   });
   v4.close();
 
-  const v5 = new ImagerDb(name);
-  expect(v5.verno).toBe(5);
-  await expect(v5.settings.get(SETTINGS_ID)).resolves.toEqual(row);
-  const image = await v5.images.get('img-1');
+  const v6 = new ImagerDb(name);
+  expect(v6.verno).toBe(6);
+  await expect(v6.settings.get(SETTINGS_ID)).resolves.toEqual(row);
+  const image = await v6.images.get('img-1');
   expect(image).toMatchObject({ prompt: 'v3 image', source: 'generated', runId: 'run-1' });
   // The stored row was NOT rewritten by the bump: it still has no favourite key
-  // (the READING path supplies the pre-field meaning — the next test).
+  // and no tags key (the READING path supplies the pre-field meanings — the next
+  // two tests).
   expect(image).not.toHaveProperty('favorite');
+  expect(image).not.toHaveProperty('tags');
   expect([...(image?.bytes ?? [])]).toEqual([9, 9]);
-  const run = await v5.runs.get('run-1');
+  const run = await v6.runs.get('run-1');
   expect(run).toMatchObject({ kind: 'refine', inputImageIds: ['img-0'], costUsd: 0.5 });
-  await expect(v5.conversations.get('conv-1')).resolves.toMatchObject({ title: 'v4 conversation' });
-  v5.close();
+  await expect(v6.conversations.get('conv-1')).resolves.toMatchObject({ title: 'v4 conversation' });
+  v6.close();
 });
 
 /**
@@ -125,6 +128,41 @@ it('a row written WITHOUT favorite reads as false and round-trips', async () => 
   if (read === undefined) throw new Error('seed failed');
   await db.images.put(read);
   const again = await getImage('img-legacy');
+  expect(again).toEqual(read);
+  await db.images.clear();
+});
+
+/**
+ * The v6 CONTENT change adds `StoredImage.tags`. A row a pre-tags app wrote has
+ * no such key, so the READING path is what must keep working — proven on the
+ * APP's own database the same way the favourite default is: write a pre-field
+ * row, read it through the repo (it reads as UNTAGGED — the meaning the absence
+ * already had, never a mask for a broken row), write it back and read again.
+ */
+it('a row written WITHOUT tags reads as [] and round-trips (the pre-tags meaning)', async () => {
+  await db.images.clear();
+  await db.images.put({
+    id: 'img-pre-tags',
+    bytes: new Uint8Array([7, 7, 7]),
+    mimeType: 'image/png',
+    width: 3,
+    height: 3,
+    prompt: 'written before tags',
+    model: 'a/b',
+    source: 'generated',
+    createdAt: 4,
+    runId: '',
+    // No `tags` key at all — exactly what the previous build stored.
+  } as never);
+
+  const read = await getImage('img-pre-tags');
+  expect(read?.tags).toEqual([]);
+  expect(read?.prompt).toBe('written before tags');
+  expect([...(read?.bytes ?? [])]).toEqual([7, 7, 7]);
+
+  if (read === undefined) throw new Error('seed failed');
+  await db.images.put(read);
+  const again = await getImage('img-pre-tags');
   expect(again).toEqual(read);
   await db.images.clear();
 });

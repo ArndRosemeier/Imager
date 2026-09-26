@@ -58,6 +58,7 @@ async function seedSource(): Promise<void> {
     createdAt: 1,
     runId: '',
     favorite: false,
+    tags: [],
   });
 }
 

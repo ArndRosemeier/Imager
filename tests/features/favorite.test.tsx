@@ -45,6 +45,7 @@ async function seed(prompt: string, id: string, createdAt: number): Promise<void
     createdAt,
     runId: '',
     favorite: false,
+    tags: [],
   });
 }
 

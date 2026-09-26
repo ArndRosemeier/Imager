@@ -39,6 +39,14 @@ export class ImagerDb extends Dexie {
     // (pin: tests/db/migration.test.ts — a row written WITHOUT the field reads
     // as `false` at v5).
     this.version(5).stores({ images: 'id, createdAt, runId' });
+    // v6 (tags): `StoredImage.tags` is stored data, NOT an index — the gallery
+    // reads the rows `listImages` already orders and filters them in memory
+    // (`src/domain/tags.ts`), so there is no tags table and no store schema
+    // moves; every v1–v5 row survives verbatim. Declared anyway, exactly as v3
+    // and v5 declared their content changes, so the data-shape change is visible
+    // next to the indexes that did not change (pin: tests/db/migration.test.ts —
+    // a row written WITHOUT the field reads as `[]` at v6).
+    this.version(6).stores({ images: 'id, createdAt, runId' });
   }
 }
 

@@ -43,6 +43,7 @@ async function seedImage(): Promise<void> {
     createdAt: 1,
     runId: '',
     favorite: false,
+    tags: [],
   });
 }
 

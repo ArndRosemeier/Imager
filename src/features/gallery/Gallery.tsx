@@ -1,10 +1,14 @@
 import { useEffect, useState } from 'react';
 
-import { EmptyState, CopyButton, FavoriteButton, SaveButton } from '@/components/ui';
+import { EmptyState, CopyButton, FavoriteButton, SaveButton, Segmented } from '@/components/ui';
 import { buttonClass } from '@/components/styles';
-import { deleteImage, getRun, listImages, setImageFavorite } from '@/db/imageRepo';
+import { deleteImage, getRun, listImages, setImageFavorite, setImageTags } from '@/db/imageRepo';
 import { type Run, type StoredImage } from '@/domain/image';
+import { filterImages, tagCounts, type TagMatchMode } from '@/domain/tags';
 import { imageFileName } from '@/features/export/exportLibrary';
+import { GALLERY_GRID_CLASS, GALLERY_SIZES, useGallerySize } from '@/features/gallery/gallerySize';
+import { TagBar } from '@/features/gallery/TagBar';
+import { TagEditor } from '@/features/gallery/TagEditor';
 import { useImageUrl } from '@/features/gallery/useImageUrl';
 import { toError } from '@/lib/errors';
 import { toastError } from '@/lib/toast';
@@ -88,9 +92,12 @@ function Thumb({
 
 function Lightbox(props: {
   image: StoredImage;
+  /** Every tag in use in the library, for the editor's suggestions. */
+  allTags: readonly string[];
   onClose: () => void;
   onDeleted: () => void;
   onToggleFavorite: () => Promise<void>;
+  onSetTags: (next: string[]) => Promise<void>;
   onRefine?: (() => void) | undefined;
   onChat?: (() => void) | undefined;
 }): React.JSX.Element {
@@ -150,6 +157,14 @@ function Lightbox(props: {
               {`Run cost ${run?.costUsd == null ? 'not reported' : `$${run.costUsd.toFixed(4)}`}`}
             </p>
           </div>
+        </div>
+        {/*
+          The tag editor sits with the metadata it belongs to, on the lightbox's
+          dark surface (docs/17 row 34). Its tags come from THIS freshly read
+          row, so the chips are always what is stored.
+        */}
+        <div className="mt-3">
+          <TagEditor tags={image.tags} suggestions={props.allTags} onChange={props.onSetTags} />
         </div>
         <div className="mt-3 flex flex-wrap gap-2">
           {/*
@@ -231,6 +246,16 @@ export function Gallery({
   const [openId, setOpenId] = useState<string | null>(null);
   const [localVersion, setLocalVersion] = useState(0);
   const [loadError, setLoadError] = useState<Error | null>(null);
+  /**
+   * The tag FILTER state (docs/17 row 34): which tags are selected and whether
+   * they match all (AND) or any (OR). It lives HERE, beside the rows it filters
+   * — the bar is a pure view of it — and it is deliberately NOT persisted: a
+   * stale filter that hides the library on the next visit is a trap, while the
+   * size preference (which hides nothing) is persisted through its own seam.
+   */
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [matchMode, setMatchMode] = useState<TagMatchMode>('AND');
+  const [size, setSize] = useGallerySize();
   useEffect(() => {
     listImages().then(setImages, (error: unknown) => {
       setLoadError(toError(error));
@@ -246,9 +271,26 @@ export function Gallery({
     setImageFavorite(image.id, !image.favorite).then(() => {
       setLocalVersion((v) => v + 1);
     });
+  /**
+   * ONE tag write, for the lightbox's editor: the repo swaps only the tags field
+   * (bytes untouched — the row-32 trap) and the re-read is what updates the
+   * lightbox chips AND the derived tag bar together, so the two can never
+   * disagree.
+   */
+  const setTags = (image: StoredImage, next: string[]): Promise<void> =>
+    setImageTags(image.id, next).then(() => {
+      setLocalVersion((v) => v + 1);
+    });
   if (loadError !== null) throw loadError;
   if (images === null) return <p className="text-body text-muted">Loading gallery…</p>;
   const open = images.find((i) => i.id === openId);
+  // The bar's list is DERIVED from the rows above — never stored, never a
+  // second source of truth (docs/17 row 34).
+  const tagList = tagCounts(images);
+  const allTags = tagList.map((entry) => entry.tag);
+  // The ONE ordering seam's order, filtered — `filterImages` preserves the input
+  // order, so favourites still lead and newest-first still holds inside a group.
+  const visible = filterImages(images, selectedTags, matchMode);
   return (
     <section aria-label="Gallery" className="min-w-0 flex-1">
       {images.length === 0 ? (
@@ -257,22 +299,68 @@ export function Gallery({
           hint="Generate one, or refine an image you already have — every result lands here."
         />
       ) : (
-        <div className="grid grid-cols-2 gap-0.5 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-          {images.map((image) => (
-            <Thumb
-              key={image.id}
-              image={image}
-              onOpen={() => {
-                setOpenId(image.id);
+        <>
+          <div className="mb-2 flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+            <TagBar
+              tags={tagList}
+              selected={selectedTags}
+              mode={matchMode}
+              onToggle={(tag) => {
+                setSelectedTags((current) =>
+                  current.includes(tag)
+                    ? current.filter((entry) => entry !== tag)
+                    : [...current, tag],
+                );
               }}
-              onToggleFavorite={() => toggleFavorite(image)}
+              onModeChange={setMatchMode}
+              onClear={() => {
+                setSelectedTags([]);
+              }}
             />
-          ))}
-        </div>
+            {/*
+              The image size control (docs/17 row 34). `Segmented` is the app's
+              ONE switch; the options are the three `GALLERY_GRID_CLASS` steps and
+              Medium is the grid the gallery already had.
+            */}
+            <Segmented
+              label="Image size"
+              options={GALLERY_SIZES}
+              value={size}
+              onChange={setSize}
+            />
+          </div>
+          {/*
+            "6 of 20", always: a filter that is hiding images must never be
+            silent about it, and an unfiltered grid reads honestly as "20 of 20".
+          */}
+          <p className="mb-2 text-caption text-muted">
+            Showing {visible.length} of {images.length} images
+          </p>
+          {visible.length === 0 ? (
+            <EmptyState
+              title="No images match these tags."
+              hint="Clear a tag, or switch AND to OR, to widen the selection."
+            />
+          ) : (
+            <div className={`grid gap-0.5 ${GALLERY_GRID_CLASS[size]}`}>
+              {visible.map((image) => (
+                <Thumb
+                  key={image.id}
+                  image={image}
+                  onOpen={() => {
+                    setOpenId(image.id);
+                  }}
+                  onToggleFavorite={() => toggleFavorite(image)}
+                />
+              ))}
+            </div>
+          )}
+        </>
       )}
       {open !== undefined && (
         <Lightbox
           image={open}
+          allTags={allTags}
           onClose={() => {
             setOpenId(null);
           }}
@@ -281,6 +369,7 @@ export function Gallery({
             setLocalVersion((v) => v + 1);
           }}
           onToggleFavorite={() => toggleFavorite(open)}
+          onSetTags={(next) => setTags(open, next)}
           onRefine={
             onRefine === undefined
               ? undefined

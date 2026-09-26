@@ -494,6 +494,18 @@
   color: var(--favorite);
 }
 
+/*
+ * A SELECTED tag chip (docs/17 row 34). Plain CSS rather than a utility for the
+ * row-23 reason: it has to beat `@utility chip`'s own background, border and
+ * colour, and unlayered rules beat every `@layer` — a filter that is on must be
+ * visibly on, whatever the utility order happens to be.
+ */
+.tag-chip-on {
+  border-color: var(--accent);
+  background-color: var(--accent);
+  color: var(--on-accent);
+}
+
 /* The page itself fills the window in both themes (no white band under a
  * short page, no light flash at the edges). */
 html,

@@ -39,6 +39,7 @@ import { db } from '@/db/db';
 import { updateSettings } from '@/db/settingsRepo';
 import { type Conversation } from '@/domain/chat';
 import { runSchema, storedImageSchema, type StoredImage } from '@/domain/image';
+import { normalizeTags } from '@/domain/tags';
 import {
   EXPORT_FORMAT,
   EXPORT_FORMAT_VERSION,
@@ -353,6 +354,12 @@ function imageRow(meta: ExportManifestImage, bytes: Uint8Array<ArrayBuffer>): St
     // Already defaulted to `false` by the manifest schema when the archive was
     // written before favourites existed (docs/17 row 32).
     favorite: meta.favorite,
+    // Already defaulted to `[]` by the manifest schema when the archive was
+    // written before tags existed (docs/17 row 34). An archive from THIS build
+    // already carries normalized tags, but the rule is applied here too so a
+    // hand-edited manifest cannot smuggle a second spelling of a tag into the
+    // library — the SAME `normalizeTags` the gallery's editor writes through.
+    tags: normalizeTags(meta.tags),
   });
 }
 

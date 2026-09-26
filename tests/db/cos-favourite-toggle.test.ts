@@ -26,6 +26,7 @@ function seededRow(id: string) {
     createdAt: 1,
     runId: '',
     favorite: false,
+    tags: [],
   };
 }
 

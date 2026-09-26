@@ -85,6 +85,7 @@ it('COS: a stored image is listed in the Gallery tab on arrival (no refresh plum
     createdAt: Date.now(),
     runId: '',
     favorite: false,
+    tags: [],
   });
 
   const user = userEvent.setup();

@@ -36,6 +36,15 @@ export const storedImageSchema = z.strictObject({
    * exactly what it was (the repo merges the same default in `parseImage`).
    */
   favorite: z.boolean().default(false),
+  /**
+   * The owner's free-typed tags (docs/17 row 34). Stored data, NOT an index:
+   * the gallery filters them in memory over the rows `listImages` already read,
+   * so there is no tags table and no second source of truth. `.default([])` is
+   * what makes the absence meaningful — a row written before tags existed reads
+   * as UNTAGGED, which is exactly what it was (the repo merges the same default
+   * in `parseImage`). Entries are the normalized form `normalizeTags` produces.
+   */
+  tags: z.array(z.string()).default([]),
 });
 export type StoredImage = z.infer<typeof storedImageSchema>;
 

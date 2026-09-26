@@ -99,17 +99,21 @@ function image(overrides: Partial<StoredImage> & { id: string }): StoredImage {
     createdAt: 1_700_000_000_000,
     runId: 'run-1',
     favorite: false,
+    tags: [],
     ...overrides,
   };
 }
 
 const IMAGE_A = image({ id: 'image-a', bytes: new Uint8Array([9, 8, 7, 6]) });
-// A FAVOURITE, so the round trip pins that the flag survives a backup (row 32).
+// A FAVOURITE WITH TAGS, so the round trip pins that BOTH survive a backup
+// (docs/17 rows 32/34). The list is in the canonical SORTED form the app stores
+// (`normalizeTags`), because that is what a real archive carries.
 const IMAGE_B = image({
   id: 'image-b',
   bytes: new Uint8Array([6, 5, 4]),
   mimeType: 'image/jpeg',
   favorite: true,
+  tags: ['forest', 'orc'],
 });
 
 const SOURCE: ExportSource = {
@@ -206,6 +210,10 @@ it('ROUND TRIP: a good archive rebuilds every row, byte-identical, with its ids'
   // The favourite flag is part of the row, so a backup preserves it (row 32).
   expect(storedA?.favorite).toBe(false);
   expect(storedB?.favorite).toBe(true);
+  // ... and so are the tags (row 34): the untagged row stays untagged, the
+  // tagged one comes back with exactly its own list.
+  expect(storedA?.tags).toEqual([]);
+  expect(storedB?.tags).toEqual(['forest', 'orc']);
 
   const storedRun = await db.runs.get('run-1');
   const storedConversation = await db.conversations.get('conversation-1');
@@ -362,6 +370,30 @@ it('an archive exported BEFORE favourites existed imports as false, not a failur
   expect(result.images).toEqual({ added: 2, replaced: 0, skipped: 0 });
   expect((await db.images.get('image-a'))?.favorite).toBe(false);
   expect((await db.images.get('image-b'))?.favorite).toBe(false);
+});
+
+it('an archive exported BEFORE tags existed imports as UNTAGGED, not a failure', async () => {
+  /*
+   * Exactly what the previous build (favourites, no tags) wrote: no `tags` key
+   * on any image entry. The manifest is a `strictObject`, so `.default([])` is
+   * the ONE thing standing between an existing backup and a zod refusal — and
+   * the reading it supplies ("no tags") is the meaning the absence already had
+   * (docs/17 row 34). The tagged image-b in the fixture is the load-bearing one.
+   */
+  const older = await archiveWithManifestEdit((manifest) => {
+    const images = manifest.images as Record<string, unknown>[];
+    for (const entry of images) delete entry.tags;
+    expect(images.length).toBeGreaterThan(0);
+    expect(images.every((entry) => !('tags' in entry))).toBe(true);
+  });
+
+  const archive = await readLibraryArchive(older);
+  expect(archive.manifest.images.every((meta) => meta.tags.length === 0)).toBe(true);
+
+  const result = await applyImport(archive, choices());
+  expect(result.images).toEqual({ added: 2, replaced: 0, skipped: 0 });
+  expect((await db.images.get('image-a'))?.tags).toEqual([]);
+  expect((await db.images.get('image-b'))?.tags).toEqual([]);
 });
 
 /* --------------------------------------------------------- conflict choices */

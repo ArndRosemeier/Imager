@@ -76,6 +76,7 @@ function image(id: string, bytes: number[]): StoredImage {
     createdAt: 1_700_000_000_000,
     runId: 'run-1',
     favorite: false,
+    tags: [],
   };
 }
 

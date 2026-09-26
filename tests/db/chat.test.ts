@@ -42,6 +42,7 @@ function storedImage(id: string, runId: string): StoredImage {
     createdAt: 2,
     runId,
     favorite: false,
+    tags: [],
   };
 }
 

@@ -6,6 +6,7 @@ import {
   type Run,
   type StoredImage,
 } from '@/domain/image';
+import { normalizeTags } from '@/domain/tags';
 import { imageSize } from '@/lib/imageSize';
 
 /**
@@ -14,13 +15,20 @@ import { imageSize } from '@/lib/imageSize';
  * An ADDITIVE field carries the meaning its ABSENCE already had, so the
  * defaults below are the reading the app had before the field existed, never a
  * mask for a broken row: an image with no recorded provenance is one the app
- * generated, a run with no recorded kind is a plain generation, and an image
- * with no `favorite` was written before favourites existed — it is NOT a
- * favourite (docs/17 row 32). Any other missing field still throws.
+ * generated, a run with no recorded kind is a plain generation, an image with
+ * no `favorite` was written before favourites existed — it is NOT a favourite
+ * (docs/17 row 32) — and an image with no `tags` was written before tagging
+ * existed — it has NO tags (docs/17 row 34). Any other missing field still
+ * throws.
  */
 function parseImage(row: unknown): StoredImage {
   const record = typeof row === 'object' && row !== null ? (row as Record<string, unknown>) : {};
-  const parsed = storedImageSchema.safeParse({ source: 'generated', favorite: false, ...record });
+  const parsed = storedImageSchema.safeParse({
+    source: 'generated',
+    favorite: false,
+    tags: [],
+    ...record,
+  });
   if (!parsed.success) throw new Error(`Stored image is corrupt: ${parsed.error.message}`);
   return parsed.data;
 }
@@ -84,6 +92,32 @@ export async function setImageFavorite(id: string, favorite: boolean): Promise<v
   });
 }
 
+/**
+ * Replace ONE image's tags, writing ONLY that field's value. Same form as
+ * `setImageFavorite` and for the SAME measured reason: Dexie's
+ * `Table.update`/`Collection.modify` deep-clones the record and can turn the
+ * row's `Uint8Array` into a look-alike that no longer carries a typed-array
+ * internal slot, so the next read throws "Stored image is corrupt" (docs/17 row
+ * 32, re-pinned for THIS writer path in `tests/db/imageRepo.test.ts`). The row
+ * is therefore read, validated through `parseImage` (which supplies the
+ * pre-tags default for a legacy row) and written back with the normalized tags
+ * swapped in — the bytes go back exactly as they were read, in ONE transaction
+ * so a racing delete cannot resurrect the row. A missing row is a LOUD failure,
+ * never a silent no-op (rule 1).
+ *
+ * `normalizeTags` is applied HERE, at the storage seam, so every writer (the
+ * lightbox editor, an import, a future bulk action) stores the same canonical
+ * form and no caller has to remember the rule.
+ */
+export async function setImageTags(id: string, tags: readonly string[]): Promise<void> {
+  const normalized = normalizeTags(tags);
+  await db.transaction('rw', db.images, async () => {
+    const row = await db.images.get(id);
+    if (row === undefined) throw new Error(`No stored image with id "${id}" to update.`);
+    await db.images.put({ ...parseImage(row), tags: normalized });
+  });
+}
+
 export async function listRuns(): Promise<Run[]> {
   return (await db.runs.orderBy('createdAt').reverse().toArray()).map(parseRun);
 }
@@ -141,8 +175,10 @@ export async function buildGeneratedImages(input: {
         source: 'generated',
         createdAt: input.createdAt + index,
         runId: input.runId,
-        // A brand-new image is nobody's favourite until the owner says so.
+        // A brand-new image is nobody's favourite until the owner says so, and
+        // carries no tags until the owner types one.
         favorite: false,
+        tags: [],
       }),
     );
   }
@@ -177,6 +213,9 @@ export async function saveUploadedImage(
     createdAt,
     runId: '',
     favorite: false,
+    // An upload is untagged until the owner tags it, exactly like a generated
+    // image.
+    tags: [],
   };
   await db.images.put(storedImageSchema.parse(image));
   return image;
