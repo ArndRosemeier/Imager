@@ -1,5 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 
+import { buttonClass } from '@/components/styles';
 import { errorMessage } from '@/lib/errors';
 
 interface State {
@@ -24,13 +25,13 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
       return (
         <div
           role="alert"
-          className="m-6 rounded border border-danger bg-danger-surface p-4 text-on-danger-surface"
+          className="card m-6 border-danger bg-danger-surface p-4 text-on-danger-surface"
         >
-          <h2 className="font-semibold">Something went wrong</h2>
-          <p className="mt-2 font-mono text-sm">{errorMessage(this.state.error)}</p>
+          <h2 className="text-heading">Something went wrong</h2>
+          <p className="mt-2 font-mono text-caption">{errorMessage(this.state.error)}</p>
           <button
             type="button"
-            className="mt-3 rounded bg-danger px-3 py-1 text-white"
+            className={`${buttonClass('danger')} mt-3`}
             onClick={() => {
               window.location.reload();
             }}

@@ -1,15 +1,19 @@
 import { useEffect, useRef, useState } from 'react';
 
+import { EmptyState } from '@/components/ui';
+import { buttonClass, focusRing } from '@/components/styles';
 import { getConversation, listConversations } from '@/db/chatRepo';
-import { getImage, saveUploadedImage } from '@/db/imageRepo';
+import { getImage } from '@/db/imageRepo';
 import { conversationCost, type ChatMessage, type Conversation } from '@/domain/chat';
 import type { StoredImage } from '@/domain/image';
 import type { ChatAttachRequest } from '@/features/chat/attachRequest';
 import { runChatTurn } from '@/features/chat/runChatTurn';
+import { useStagedAttachment } from '@/features/chat/useStagedAttachment';
 import { chatBlockReason, useChat } from '@/features/chat/useChat';
 import { IMAGE_ACCEPT } from '@/features/refine/reference';
 import { useImageUrl } from '@/features/gallery/useImageUrl';
-import { errorMessage, toError } from '@/lib/errors';
+import { toError } from '@/lib/errors';
+import { useMinWidth, WIDE_QUERY } from '@/lib/media';
 import { toastError } from '@/lib/toast';
 
 /**
@@ -18,19 +22,19 @@ import { toastError } from '@/lib/toast';
  */
 function AttachedThumb({ image }: Readonly<{ image: StoredImage }>): React.JSX.Element {
   const url = useImageUrl(image);
-  if (url === null) return <span className="text-xs text-muted">Loading…</span>;
+  if (url === null) return <span className="text-caption text-muted">Loading…</span>;
   return <img src={url} alt={image.prompt} className="size-10 rounded object-cover" />;
 }
 
 /** One stored image of an assistant turn, with its object URL. */
 function ChatImage({ image }: Readonly<{ image: StoredImage }>): React.JSX.Element {
   const url = useImageUrl(image);
-  if (url === null) return <p className="text-xs text-muted">Loading image…</p>;
+  if (url === null) return <p className="text-caption text-muted">Loading image…</p>;
   return (
     <img
       src={url}
       alt={image.prompt}
-      className="w-full rounded border border-strong object-contain"
+      className="max-h-72 max-w-[min(18rem,100%)] rounded-lg border border-strong object-contain"
     />
   );
 }
@@ -59,12 +63,12 @@ function ChatImages({ ids }: Readonly<{ ids: readonly string[] }>): React.JSX.El
     };
   }, [ids]);
   if (error !== null) throw error;
-  if (rows === null) return <p className="text-xs text-muted">Loading images…</p>;
+  if (rows === null) return <p className="text-caption text-muted">Loading images…</p>;
   return (
     <div className="mt-2 grid grid-cols-2 gap-2">
       {rows.map((image, index) =>
         image === undefined ? (
-          <p key={ids[index]} role="alert" className="text-xs text-danger">
+          <p key={ids[index]} role="alert" className="text-caption text-danger">
             A generated image of this turn is no longer in the gallery.
           </p>
         ) : (
@@ -80,17 +84,22 @@ function MessageRow({ message }: Readonly<{ message: ChatMessage }>): React.JSX.
   return (
     <li className={isUser ? 'flex justify-end' : 'flex justify-start'}>
       <div
-        className={`max-w-[85%] rounded border border-strong p-2 ${isUser ? 'bg-subtle' : 'bg-surface'}`}
+        className={`max-w-[min(85%,44rem)] rounded-2xl px-3 py-2 ${
+          isUser
+            ? 'rounded-br-sm bg-accent-soft text-ink ring-1 ring-accent/30'
+            : 'card rounded-bl-sm'
+        }`}
       >
-        {message.text !== '' && <p className="whitespace-pre-wrap">{message.text}</p>}
+        <p className="text-caption text-muted">{isUser ? 'You' : 'Assistant'}</p>
+        {message.text !== '' && <p className="text-body whitespace-pre-wrap">{message.text}</p>}
         {message.imageIds.length > 0 && <ChatImages ids={message.imageIds} />}
         {message.error !== null && (
-          <p role="alert" className="text-danger">
+          <p role="alert" className="text-caption text-danger">
             Turn failed: {message.error}
           </p>
         )}
         {message.role === 'assistant' && message.costUsd !== null && (
-          <p className="mt-1 text-xs text-muted">Cost: ${message.costUsd.toFixed(4)}</p>
+          <p className="mt-1 text-caption text-muted">Cost: ${message.costUsd.toFixed(4)}</p>
         )}
       </div>
     </li>
@@ -102,15 +111,15 @@ function ConversationView({
 }: Readonly<{ conversation: Conversation }>): React.JSX.Element {
   const cost = conversationCost(conversation);
   return (
-    <header className="flex flex-wrap items-baseline justify-between gap-2">
-      <h2 className="font-semibold">{conversation.title}</h2>
-      <p className="text-sm text-muted">
+    <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+      <h2 className="min-w-0 truncate text-heading text-ink">{conversation.title}</h2>
+      <p className="text-caption text-muted">
         <span className="font-mono">{conversation.model}</span> · total{' '}
         {cost.totalUsd === null ? 'not reported' : `$${cost.totalUsd.toFixed(4)}`}
         {cost.missingTurns > 0 &&
           ` (${String(cost.missingTurns)} turn${cost.missingTurns === 1 ? '' : 's'} without a reported cost)`}
       </p>
-    </header>
+    </div>
   );
 }
 
@@ -137,25 +146,22 @@ export function ChatArea({
   const [openId, setOpenId] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [pendingText, setPendingText] = useState<string | null>(null);
-  /**
-   * The images attached to the NEXT message ("an image as the base of the
-   * chat", ledger row 16). They become the user message's own `imageIds`, so
-   * they persist across later turns through the ordinary history replay —
-   * attach once and keep refining from it.
-   *
-   * BOTH ways in — the composer's file control and the gallery lightbox's
-   * "Chat with this image" request (row 17) — stage into THIS state, and the
-   * chips below render it. ONE staging mechanism, never two.
-   */
-  const [attached, setAttached] = useState<StoredImage[]>([]);
-  const [attachError, setAttachError] = useState<string | null>(null);
-  const [attachBusy, setAttachBusy] = useState(false);
-  const fileRef = useRef<HTMLInputElement | null>(null);
+  const [listOpen, setListOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [version, setVersion] = useState(0);
   const [loadError, setLoadError] = useState<Error | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const fileRef = useRef<HTMLInputElement | null>(null);
+  const wide = useMinWidth(WIDE_QUERY);
+
+  /**
+   * The images attached to the NEXT message ("an image as the base of the
+   * chat", ledger row 16) — ONE staging state, fed by BOTH the composer's file
+   * control and the gallery lightbox's request (row 17). The state lives in its
+   * own hook so there is exactly one such state in `src/`.
+   */
+  const staging = useStagedAttachment(attachRequest, onAttachConsumed);
 
   useEffect(() => {
     let cancelled = false;
@@ -191,41 +197,6 @@ export function ChatArea({
     };
   }, [openId, version]);
 
-  useEffect(() => {
-    if (attachRequest === undefined) return;
-    let cancelled = false;
-    // The image is an ordinary gallery row, so staging it is a Dexie read —
-    // NO copy, NO re-upload and NO request (docs/17 row 17).
-    getImage(attachRequest.imageId)
-      .then(
-        (image) => {
-          if (cancelled) return;
-          if (image === undefined) {
-            // The row is gone: say so rather than stage nothing silently (rule
-            // 1). The request is still consumed below — it is not retried.
-            setAttachError('That gallery image is no longer available to attach.');
-            return;
-          }
-          setAttached((prev) =>
-            prev.some((row) => row.id === image.id) ? prev : [...prev, image],
-          );
-        },
-        (loadFailure: unknown) => {
-          if (cancelled) return;
-          setAttachError(errorMessage(loadFailure));
-          toastError('Could not attach that image', loadFailure);
-        },
-      )
-      .finally(() => {
-        // CONSUMED once, whatever happened: `App` clears the request, so
-        // re-mounting this tab can never re-attach a stale one.
-        if (!cancelled) onAttachConsumed(attachRequest.nonce);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [attachRequest, onAttachConsumed]);
-
   // Newest turn at the bottom, kept in view. Guarded with a runtime check:
   // jsdom (the tests' DOM) implements no `scrollIntoView`.
   useEffect(() => {
@@ -241,11 +212,26 @@ export function ChatArea({
     };
   }, []);
 
+  // The conversation list is a slide-in sheet only where it would otherwise
+  // push the conversation off the screen; Escape closes it there.
+  useEffect(() => {
+    if (!listOpen || wide) return;
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') setListOpen(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [listOpen, wide]);
+
   if (error !== null) throw error;
   if (loadError !== null) throw loadError;
-  if (state === null || conversations === null) return <p>Loading chat…</p>;
+  if (state === null || conversations === null) {
+    return <p className="text-body text-muted">Loading chat…</p>;
+  }
 
-  const reason = chatBlockReason(state, draft, attached.length > 0);
+  const reason = chatBlockReason(state, draft, staging.attached.length > 0);
   /**
    * The conversation's BASE images: every image attached to a user turn. They
    * are what makes "an image as the base of the chat" true across turns — the
@@ -255,34 +241,15 @@ export function ChatArea({
     message.role === 'user' ? message.imageIds : [],
   );
 
-  const onAttach = async (file: File): Promise<void> => {
-    setAttachError(null);
-    setAttachBusy(true);
-    try {
-      const bytes = new Uint8Array(await file.arrayBuffer());
-      const image = await saveUploadedImage({ bytes, mimeType: file.type, fileName: file.name });
-      setAttached((prev) => [...prev, image]);
-      // The upload is a gallery row now, so the gallery shows it too.
-      setVersion((v) => v + 1);
-    } catch (uploadFailure: unknown) {
-      setAttachError(errorMessage(uploadFailure));
-      toastError('Could not attach that image', uploadFailure);
-    } finally {
-      setAttachBusy(false);
-      if (fileRef.current !== null) fileRef.current.value = '';
-    }
-  };
-
   const onSend = (): void => {
     const text = draft.trim();
-    const attachedNow = attached;
+    const attachedNow = staging.takeAll();
     const attachIds = attachedNow.map((image) => image.id);
     const controller = new AbortController();
     abortRef.current = controller;
     setBusy(true);
     setPendingText(text);
     setDraft('');
-    setAttached([]);
     runChatTurn({
       apiKey: state.settings.openRouterApiKey,
       model: state.settings.refineChatModel,
@@ -307,7 +274,7 @@ export function ChatArea({
           setPendingText(null);
           setDraft(text);
           // Give the attachments back too: nothing the owner chose is lost.
-          setAttached(attachedNow);
+          staging.restore(attachedNow);
           toastError('Chat turn failed', turnFailure);
           setVersion((v) => v + 1);
         },
@@ -319,94 +286,157 @@ export function ChatArea({
   };
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(18rem,24rem)_minmax(0,1fr)]">
+    <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[19rem_minmax(0,1fr)] lg:items-start">
+      {/*
+        The conversation list. On a wide screen it is the left rail; on a narrow
+        one it is a sheet over the conversation, opened by the header button and
+        closed by Escape or the backdrop. It is ALWAYS rendered (hiding it with
+        CSS, never by unmounting), so the open conversation's scroll state
+        survives opening and closing the list.
+      */}
       <aside
         aria-label="Conversations"
-        className="flex flex-col gap-2 self-start rounded border border-strong bg-surface p-3"
+        data-panel={listOpen || wide ? 'open' : 'closed'}
+        className={`card conversation-list ${listOpen ? 'conversation-list-sheet' : ''}`}
       >
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="font-semibold">Conversations</h2>
-          <button
-            type="button"
-            className="rounded border border-strong px-2 py-1 text-sm"
-            onClick={() => {
-              setOpenId(null);
-              setOpen(null);
-              setDraft('');
-            }}
-          >
-            New conversation
-          </button>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-heading text-ink">Conversations</h2>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              className={buttonClass('secondary')}
+              onClick={() => {
+                setOpenId(null);
+                setOpen(null);
+                setDraft('');
+              }}
+            >
+              New conversation
+            </button>
+            <button
+              type="button"
+              className={`${buttonClass('ghost', focusRing)} lg:hidden`}
+              onClick={() => {
+                setListOpen(false);
+              }}
+            >
+              Close
+            </button>
+          </div>
         </div>
-        {conversations.length === 0 && <p className="text-sm text-muted">No conversations yet.</p>}
-        <ul className="flex flex-col gap-1">
-          {conversations.map((conversation) => (
-            <li key={conversation.id}>
-              <button
-                type="button"
-                aria-current={conversation.id === openId}
-                className="w-full rounded border border-strong px-2 py-1 text-left aria-current:bg-subtle"
-                onClick={() => {
-                  setOpenId(conversation.id);
-                }}
-              >
-                <span className="block truncate">{conversation.title}</span>
-                <span className="block truncate font-mono text-xs text-muted">
-                  {conversation.model} · {new Date(conversation.updatedAt).toLocaleString()}
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
+        {conversations.length === 0 ? (
+          <p className="px-1 py-2 text-body text-muted">
+            No conversations yet — type below to start one.
+          </p>
+        ) : (
+          <ul className="flex flex-col gap-1">
+            {conversations.map((conversation) => (
+              <li key={conversation.id} className="min-w-0">
+                <button
+                  type="button"
+                  aria-current={conversation.id === openId}
+                  className={`w-full rounded-lg border border-strong px-2 py-1.5 text-left ${focusRing} hover:border-accent hover:bg-subtle aria-current:border-accent aria-current:bg-accent-soft`}
+                  onClick={() => {
+                    setOpenId(conversation.id);
+                    setListOpen(false);
+                  }}
+                >
+                  <span className="block truncate text-body text-ink">{conversation.title}</span>
+                  <span className="block truncate font-mono text-caption text-muted">
+                    {conversation.model} · {new Date(conversation.updatedAt).toLocaleString()}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </aside>
+      {listOpen && (
+        <button
+          type="button"
+          aria-label="Close the conversation list"
+          tabIndex={-1}
+          className="panel-backdrop lg:hidden"
+          onClick={() => {
+            setListOpen(false);
+          }}
+        />
+      )}
 
       <section
         aria-label="Conversation"
-        className="flex min-w-0 flex-col gap-3 self-start rounded border border-strong bg-surface p-3"
+        className="card flex min-h-0 flex-1 flex-col gap-3 p-3 lg:max-h-[calc(100vh-5rem)]"
       >
-        {open === null ? (
-          <p className="text-muted">
-            No conversation open. Type below to start one, or pick one on the left.
-          </p>
-        ) : (
-          <ConversationView conversation={open} />
-        )}
-        <ol className="flex max-h-[60vh] flex-col gap-3 overflow-auto">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <button
+            type="button"
+            className={`${buttonClass('secondary', focusRing)} lg:hidden`}
+            onClick={() => {
+              setListOpen(true);
+            }}
+          >
+            Conversations
+          </button>
+          {open === null ? (
+            <span className="text-body text-muted">
+              No conversation open — type below to start one.
+            </span>
+          ) : (
+            <ConversationView conversation={open} />
+          )}
+        </div>
+
+        <ol className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1">
           {open?.messages.map((message) => (
             <MessageRow key={message.id} message={message} />
           ))}
           {pendingText !== null && (
             <li className="flex justify-end">
-              <div className="max-w-[85%] rounded border border-strong bg-subtle p-2">
-                <p className="whitespace-pre-wrap">{pendingText}</p>
+              <div className="max-w-[min(85%,44rem)] rounded-2xl rounded-br-sm bg-accent-soft px-3 py-2 ring-1 ring-accent/30">
+                <p className="text-caption text-muted">You</p>
+                <p className="text-body whitespace-pre-wrap">{pendingText}</p>
               </div>
             </li>
           )}
           {busy && (
-            <li role="status" className="text-sm text-muted">
+            <li role="status" className="text-caption text-muted">
               Waiting for {state.settings.refineChatModel}…
             </li>
           )}
+          <div ref={bottomRef} />
         </ol>
-        <div ref={bottomRef} />
+        {/*
+          An empty conversation is a real state, not a blank box: one quiet
+          block, then the composer below it. It shows ONLY when there are no
+          turns at all — never as a placeholder over content.
+        */}
+        {open !== null && open.messages.length === 0 && pendingText === null && !busy && (
+          <EmptyState
+            title="Say what to change."
+            hint="Attach a picture, then describe the change — every result lands in the gallery."
+          />
+        )}
 
         {baseImages.length > 0 && (
-          <p className="text-sm text-muted">
+          <p className="chip self-start">
             Base image{baseImages.length === 1 ? '' : 's'}: {String(baseImages.length)} attached —
             every later turn keeps working from {baseImages.length === 1 ? 'it' : 'them'}.
           </p>
         )}
-        {attached.length > 0 && (
+        {staging.attached.length > 0 && (
           <ul aria-label="Attached images" className="flex flex-wrap gap-2">
-            {attached.map((image) => (
-              <li key={image.id} className="flex items-center gap-2 rounded border border-strong p-1">
+            {staging.attached.map((image) => (
+              <li
+                key={image.id}
+                className="flex items-center gap-2 rounded-xl border border-strong bg-subtle p-1 pr-2"
+              >
                 <AttachedThumb image={image} />
                 <button
                   type="button"
-                  className="text-sm text-danger"
+                  className={`text-caption text-danger ${focusRing}`}
                   aria-label={`Remove attached image ${image.prompt}`}
                   onClick={() => {
-                    setAttached((prev) => prev.filter((row) => row.id !== image.id));
+                    staging.remove(image.id);
                   }}
                 >
                   Remove
@@ -415,66 +445,71 @@ export function ChatArea({
             ))}
           </ul>
         )}
-        <label htmlFor="chat-message" className="font-semibold">
-          Message
-        </label>
-        <textarea
-          id="chat-message"
-          className="rounded border border-strong bg-canvas p-2 text-ink"
-          rows={3}
-          value={draft}
-          onChange={(e) => {
-            setDraft(e.target.value);
-          }}
-        />
-        <div className="flex flex-wrap items-center gap-2">
-          <input
-            ref={fileRef}
-            type="file"
-            accept={IMAGE_ACCEPT}
-            aria-label="Attach an image"
-            className="hidden"
+
+        <div className="flex flex-col gap-2 border-t border-strong pt-3">
+          <label htmlFor="chat-message" className="text-label text-ink">
+            Message
+          </label>
+          <textarea
+            id="chat-message"
+            className="field focus-visible:field-focus hover:field-hover"
+            rows={3}
+            placeholder="Describe the change you want…"
+            value={draft}
             onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file !== undefined) void onAttach(file);
+              setDraft(e.target.value);
             }}
           />
-          <button
-            type="button"
-            className="rounded border border-strong px-3 py-1"
-            disabled={attachBusy || busy}
-            onClick={() => {
-              fileRef.current?.click();
-            }}
-          >
-            {attachBusy ? 'Attaching…' : 'Attach image'}
-          </button>
-          <button
-            type="button"
-            className="rounded bg-accent px-3 py-1 text-on-accent disabled:opacity-50"
-            disabled={reason !== null || busy}
-            onClick={onSend}
-          >
-            {busy ? 'Sending…' : 'Send'}
-          </button>
-          {busy && (
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              ref={fileRef}
+              type="file"
+              accept={IMAGE_ACCEPT}
+              aria-label="Attach an image"
+              className="sr-only"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                e.target.value = '';
+                if (file !== undefined) void staging.addFile(file);
+              }}
+            />
             <button
               type="button"
-              className="rounded border border-strong px-3 py-1"
+              className={buttonClass('secondary')}
+              disabled={staging.busy || busy}
               onClick={() => {
-                abortRef.current?.abort(new DOMException('Chat turn cancelled', 'AbortError'));
+                fileRef.current?.click();
               }}
             >
-              Cancel
+              {staging.busy ? 'Attaching…' : 'Attach image'}
             </button>
+            <button
+              type="button"
+              className={buttonClass('primary', 'px-4 py-2 text-body')}
+              disabled={reason !== null || busy}
+              onClick={onSend}
+            >
+              {busy ? 'Sending…' : 'Send'}
+            </button>
+            {busy && (
+              <button
+                type="button"
+                className={buttonClass('secondary')}
+                onClick={() => {
+                  abortRef.current?.abort(new DOMException('Chat turn cancelled', 'AbortError'));
+                }}
+              >
+                Cancel
+              </button>
+            )}
+            {reason !== null && !busy && <span className="text-caption text-muted">{reason}</span>}
+          </div>
+          {staging.error !== null && (
+            <p role="alert" className="text-caption text-danger">
+              {staging.error}
+            </p>
           )}
-          {reason !== null && !busy && <span className="text-sm text-muted">{reason}</span>}
         </div>
-        {attachError !== null && (
-          <p role="alert" className="text-sm text-danger">
-            {attachError}
-          </p>
-        )}
       </section>
     </div>
   );

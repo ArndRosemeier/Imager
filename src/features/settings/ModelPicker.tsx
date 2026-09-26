@@ -1,5 +1,6 @@
 import { useId, useMemo, useState } from 'react';
 
+import { focusRing } from '@/components/styles';
 import {
   acceptsImageInput,
   canRefineViaChat,
@@ -45,52 +46,65 @@ export function ModelPicker({ label, models, selectedId, onSelect }: Props): Rea
   const selected = models.find((m) => m.id === selectedId);
 
   return (
-    <section aria-label={label} className="rounded border border-gray-300 p-3">
-      <h3 className="font-semibold">{label}</h3>
-      <p className="text-sm" data-testid={`${label}-selection`}>
+    <section aria-label={label} className="card p-3">
+      <h3 className="text-heading text-ink">{label}</h3>
+      <p className="text-caption text-muted" data-testid={`${label}-selection`}>
         {selectedId === ''
           ? 'No model selected'
           : selected === undefined
             ? `Selected: ${selectedId} (not in the current list)`
             : `Selected: ${selected.name} (${selected.id})`}
       </p>
-      <label htmlFor={searchId} className="mt-2 block text-sm">
+      <label htmlFor={searchId} className="mt-3 block text-label text-ink">
         Search {label}
       </label>
       <input
         id={searchId}
         type="search"
-        className="w-full rounded border px-2 py-1"
+        className="field focus-visible:field-focus hover:field-hover mt-1"
         value={query}
         onChange={(e) => {
           setQuery(e.target.value);
         }}
       />
-      <ul className="mt-2 max-h-64 overflow-auto" role="listbox" aria-label={`${label} options`}>
-        {filtered.map((m) => (
-          <li key={m.id} role="option" aria-selected={m.id === selectedId}>
-            <button
-              type="button"
-              className={`w-full rounded px-2 py-1 text-left hover:bg-gray-100 ${m.id === selectedId ? 'bg-blue-50' : ''}`}
-              onClick={() => {
-                onSelect(m.id);
-              }}
-            >
-              <span className="font-medium">{m.name}</span>{' '}
-              <span className="font-mono text-xs text-gray-600">{m.id}</span>
-              <span className="block text-xs text-gray-600">{priceSummary(m)}</span>
-              <span className="flex gap-1">
-                {badges(m).map((b) => (
-                  <span key={b} className="rounded bg-gray-200 px-1 text-xs">
-                    {b}
-                  </span>
-                ))}
-              </span>
-            </button>
-          </li>
-        ))}
-        {filtered.length === 0 && <li className="text-sm text-gray-600">No models match.</li>}
-      </ul>
+      {filtered.length === 0 ? (
+        <p className="mt-2 rounded-lg border border-strong bg-subtle px-3 py-4 text-center text-body text-muted">
+          No models match “{query}”.
+        </p>
+      ) : (
+        <ul
+          className="mt-2 flex max-h-64 flex-col gap-1 overflow-auto pr-1"
+          role="listbox"
+          aria-label={`${label} options`}
+        >
+          {filtered.map((m) => (
+            <li key={m.id} role="option" aria-selected={m.id === selectedId}>
+              <button
+                type="button"
+                className={`w-full rounded-lg px-2 py-1.5 text-left ${focusRing} ${
+                  m.id === selectedId
+                    ? 'bg-accent-soft ring-1 ring-accent/40'
+                    : 'hover:bg-subtle'
+                }`}
+                onClick={() => {
+                  onSelect(m.id);
+                }}
+              >
+                <span className="text-body font-medium text-ink">{m.name}</span>{' '}
+                <span className="font-mono text-caption text-muted">{m.id}</span>
+                <span className="block text-caption text-muted">{priceSummary(m)}</span>
+                <span className="flex flex-wrap gap-1 pt-0.5">
+                  {badges(m).map((b) => (
+                    <span key={b} className="chip">
+                      {b}
+                    </span>
+                  ))}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   );
 }

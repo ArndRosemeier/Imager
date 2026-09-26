@@ -1,6 +1,12 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
+// Inter is SELF-HOSTED: the @fontsource package ships the woff2 files and Vite
+// fingerprints them into the bundle, so the static host makes no external font
+// request (the app stays offline-clean). Imported BEFORE the stylesheet so the
+// `@font-face` rules exist when the UI first paints; the family itself is set
+// as the default UI face in src/index.css (the theme seam).
+import '@fontsource-variable/inter';
 import '@/index.css';
 import { App } from '@/App';
 import { ErrorBoundary } from '@/components/ErrorBoundary';

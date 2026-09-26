@@ -1,3 +1,4 @@
+import { focusRing } from '@/components/styles';
 import { THEMES, setTheme, useTheme, type Theme } from '@/lib/theme';
 
 const LABELS: Record<Theme, string> = { dark: 'Dark', light: 'Light' };
@@ -10,14 +11,15 @@ const LABELS: Record<Theme, string> = { dark: 'Dark', light: 'Light' };
 export function ThemeToggle(): React.JSX.Element {
   const theme = useTheme();
   return (
-    <div role="group" aria-label="Theme" className="flex items-center gap-2">
-      <span className="text-sm text-muted">Theme</span>
+    <div role="group" aria-label="Theme" className="seg-group">
       {THEMES.map((option) => (
         <button
           key={option}
           type="button"
           aria-pressed={theme === option}
-          className="rounded border border-strong px-2 py-1 text-sm aria-pressed:bg-accent aria-pressed:text-on-accent"
+          className={`seg-item ${focusRing} ${
+            theme === option ? 'seg-item-active' : 'hover:seg-item-hover'
+          }`}
           onClick={() => {
             setTheme(option);
           }}

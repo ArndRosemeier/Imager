@@ -9,7 +9,10 @@ import type { Run } from '@/domain/image';
 export function RunStatus({ run }: Readonly<{ run: Run | null }>): React.JSX.Element | null {
   if (run === null) return null;
   return (
-    <div role="status" className={run.error === null ? 'text-ok' : 'text-danger'}>
+    <p
+      role="status"
+      className={`text-caption ${run.error === null ? 'text-ok' : 'text-danger'}`}
+    >
       {run.error === null ? (
         <>
           Received {run.receivedCount} of {run.requestedCount}.{' '}
@@ -20,6 +23,6 @@ export function RunStatus({ run }: Readonly<{ run: Run | null }>): React.JSX.Ele
       ) : (
         <>Run failed: {run.error}</>
       )}
-    </div>
+    </p>
   );
 }

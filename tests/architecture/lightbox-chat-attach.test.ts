@@ -33,18 +33,26 @@ it('the full image view fills the viewport instead of capping the image at 70vh'
 it('the dialog keeps its accessible name and the metadata survives the bigger image', () => {
   expect(galleryCode).toContain('role="dialog"');
   expect(galleryCode).toContain('aria-label="Image details"');
-  // Prompt, model and the created/size/cost line are still rendered.
+  // Prompt, model and the created/size + run-cost metadata are still rendered.
+  // The cost line moved onto its own line in the beauty pass, so the pin now
+  // matches the template literal that carries the phrase.
   expect(galleryCode).toContain('{image.prompt}');
+  // The MODEL id was deliberately dropped from the TILE captions (it repeated
+  // on every tile); it survives here, in the full view, exactly once.
   expect(galleryCode).toContain('{image.model}');
-  expect(galleryCode).toContain('run cost');
+  expect(galleryCode).toContain('Run cost ');
 });
 
 // Rule 4 / docs/17 row 17: the gallery's "Chat with this image" folds into the
 // composer's EXISTING staged-attachment state (row 16). A second `StoredImage[]`
 // staging state anywhere in src/ would be a second attachment mechanism.
+//
+// The beauty pass MOVED that one state into its own hook so the count can be
+// taken where the state actually lives (a component that re-implemented it
+// would still be a second mechanism).
 it('exactly one staged chat attachment state exists in src/', () => {
   const hits = sourceFiles('src').filter((f) =>
     readFileSync(f, 'utf8').includes('useState<StoredImage[]>'),
   );
-  expect(hits).toEqual(['src/features/chat/ChatArea.tsx']);
+  expect(hits).toEqual(['src/features/chat/useStagedAttachment.ts']);
 });

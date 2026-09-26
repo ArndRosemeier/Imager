@@ -1,25 +1,40 @@
 import { useEffect, useState } from 'react';
 
+import { EmptyState } from '@/components/ui';
+import { buttonClass } from '@/components/styles';
 import { deleteImage, getRun, listImages } from '@/db/imageRepo';
 import { extensionFor, type Run, type StoredImage } from '@/domain/image';
 import { useImageUrl } from '@/features/gallery/useImageUrl';
 import { toError } from '@/lib/errors';
 import { toastError } from '@/lib/toast';
 
+/**
+ * One tile of the hero grid: the artwork fills the tile and the prompt reads
+ * over it, at a glance and on hover. The MODEL id is deliberately NOT here —
+ * every tile repeating it was noise; it lives in the full view, where it is
+ * read once and on purpose.
+ */
 function Thumb({ image, onOpen }: { image: StoredImage; onOpen: () => void }): React.JSX.Element {
   const url = useImageUrl(image);
   return (
-    <figure className="flex flex-col gap-1">
-      <button type="button" onClick={onOpen} aria-label={`Open image: ${image.prompt}`}>
-        {url !== null && (
-          <img src={url} alt={image.prompt} className="aspect-square w-full rounded object-cover" />
-        )}
-      </button>
-      <figcaption className="text-xs">
-        <span className="line-clamp-2">{image.prompt}</span>
-        <span className="block font-mono text-muted">{image.model}</span>
-      </figcaption>
-    </figure>
+    <button
+      type="button"
+      onClick={onOpen}
+      aria-label={`Open image: ${image.prompt}`}
+      className={`group focus-ring focus-visible:focus-ring-on relative block aspect-square w-full overflow-hidden rounded-lg bg-subtle`}
+    >
+      {url !== null && (
+        <img
+          src={url}
+          alt={image.prompt}
+          loading="lazy"
+          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+        />
+      )}
+      <span className="tile-caption group-hover:opacity-100 group-focus-visible:opacity-100">
+        <span className="line-clamp-2 text-left">{image.prompt}</span>
+      </span>
+    </button>
   );
 }
 
@@ -65,16 +80,22 @@ function Lightbox(props: {
         )}
       </div>
       <div className="mt-3 max-h-[45vh] shrink-0 overflow-y-auto">
-        <p>{image.prompt}</p>
-        <p className="font-mono text-sm">{image.model}</p>
-        <p className="text-sm">
-          {new Date(image.createdAt).toLocaleString()} · {image.width}×{image.height} · run cost{' '}
-          {run?.costUsd == null ? 'not reported' : `$${run.costUsd.toFixed(4)}`}
-        </p>
-        <div className="mt-2 flex flex-wrap gap-2">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-body">{image.prompt}</p>
+            <p className="font-mono text-caption opacity-80">{image.model}</p>
+            <p className="text-caption opacity-80">
+              {new Date(image.createdAt).toLocaleString()} · {image.width}×{image.height}
+            </p>
+            <p className="text-caption opacity-80">
+              {`Run cost ${run?.costUsd == null ? 'not reported' : `$${run.costUsd.toFixed(4)}`}`}
+            </p>
+          </div>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
           {url !== null && (
             <a
-              className="rounded bg-accent px-3 py-1 text-on-accent"
+              className={buttonClass('primary')}
               href={url}
               download={`imager-${image.id}.${extensionFor(image.mimeType)}`}
             >
@@ -82,23 +103,23 @@ function Lightbox(props: {
             </a>
           )}
           {props.onRefine !== undefined && (
-            <button type="button" className="rounded bg-accent px-3 py-1 text-on-accent" onClick={props.onRefine}>
+            <button type="button" className={buttonClass('invert')} onClick={props.onRefine}>
               Refine this
             </button>
           )}
           {props.onChat !== undefined && (
-            <button type="button" className="rounded bg-accent px-3 py-1 text-on-accent" onClick={props.onChat}>
+            <button type="button" className={buttonClass('invert')} onClick={props.onChat}>
               Chat with this image
             </button>
           )}
-          <button
-            type="button"
-            className="rounded bg-danger px-3 py-1 text-on-accent"
-            onClick={onDelete}
-          >
+          <button type="button" className={buttonClass('dangerInvert')} onClick={onDelete}>
             Delete
           </button>
-          <button type="button" className="rounded border border-strong px-3 py-1" onClick={props.onClose}>
+          <button
+            type="button"
+            className={`btn-invert hover:btn-invert-hover focus-ring-photo focus-visible:focus-ring-photo-on`}
+            onClick={props.onClose}
+          >
             Close
           </button>
         </div>
@@ -107,7 +128,10 @@ function Lightbox(props: {
   );
 }
 
-/** Newest-first grid; `version` bumps re-read the table. */
+/**
+ * The gallery: the app's primary surface. Edge-to-edge tiles on a tight
+ * gutter, more columns as the window grows, the artwork filling each tile.
+ */
 export function Gallery({
   version,
   onRefine,
@@ -129,23 +153,28 @@ export function Gallery({
     });
   }, [version, localVersion]);
   if (loadError !== null) throw loadError;
-  if (images === null) return <p>Loading gallery…</p>;
+  if (images === null) return <p className="text-body text-muted">Loading gallery…</p>;
   const open = images.find((i) => i.id === openId);
   return (
-    <section aria-label="Gallery" className="flex flex-col gap-2">
-      <h2 className="text-lg font-semibold">Gallery</h2>
-      {images.length === 0 && <p>No images yet.</p>}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
-        {images.map((image) => (
-          <Thumb
-            key={image.id}
-            image={image}
-            onOpen={() => {
-              setOpenId(image.id);
-            }}
-          />
-        ))}
-      </div>
+    <section aria-label="Gallery" className="min-w-0 flex-1">
+      {images.length === 0 ? (
+        <EmptyState
+          title="No images yet."
+          hint="Generate one, or refine an image you already have — every result lands here."
+        />
+      ) : (
+        <div className="grid grid-cols-2 gap-0.5 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+          {images.map((image) => (
+            <Thumb
+              key={image.id}
+              image={image}
+              onOpen={() => {
+                setOpenId(image.id);
+              }}
+            />
+          ))}
+        </div>
+      )}
       {open !== undefined && (
         <Lightbox
           image={open}
