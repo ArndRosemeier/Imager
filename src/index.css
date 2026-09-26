@@ -441,7 +441,11 @@
 
 /* The gallery tile caption: the prompt reads at a glance and strengthens on
  * hover. It is NEVER the only way to read the prompt (the full view has it in
- * plain ink), so an always-on caption is honest, not a placeholder. */
+ * plain ink), so an always-on caption is honest, not a placeholder.
+ *
+ * `pointer-events: none` because the caption is an OVERLAY above the tile's open
+ * control: without it the caption (not the artwork) would be the click target.
+ * The tile's copy control re-enables pointer events for itself. */
 @utility tile-caption {
   position: absolute;
   inset: 0;
@@ -458,12 +462,32 @@
     rgba(2, 6, 23, 0.18) 100%
   );
   opacity: 0.92;
+  pointer-events: none;
   transition: opacity 150ms ease;
 }
 /* At a glance on a phone (2 columns — no pointer to hover with). */
 @media (max-width: 639.98px) {
   .tile-caption {
     padding: 0.375rem;
+  }
+}
+
+/*
+ * The tile's copy control: hidden until the tile is hovered or holds keyboard
+ * focus (the artwork is the hero, so the chrome stays out of the way), and
+ * ALWAYS visible where the device has no hover. That fallback is LOAD-BEARING,
+ * not a nicety: Tailwind v4 emits the `group-hover:` rule inside
+ * `@media (hover: hover)` (MEASURED in the built CSS and in a real browser,
+ * ledger row 22), so on a touch screen the hover reveal does not exist at all —
+ * without this block the control would be permanently invisible there.
+ */
+@utility tile-copy {
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+@media (hover: none) {
+  .tile-copy {
+    opacity: 1;
   }
 }
 

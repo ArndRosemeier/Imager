@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-import { EmptyState } from '@/components/ui';
+import { EmptyState, CopyButton } from '@/components/ui';
 import { buttonClass } from '@/components/styles';
 import { deleteImage, getRun, listImages } from '@/db/imageRepo';
 import { extensionFor, type Run, type StoredImage } from '@/domain/image';
@@ -10,31 +10,56 @@ import { toastError } from '@/lib/toast';
 
 /**
  * One tile of the hero grid: the artwork fills the tile and the prompt reads
- * over it, at a glance and on hover. The MODEL id is deliberately NOT here —
- * every tile repeating it was noise; it lives in the full view, where it is
- * read once and on purpose.
+ * over it, at a glance. The MODEL id is deliberately NOT here — every tile
+ * repeating it was noise; it lives in the full view, where it is read once and
+ * on purpose.
+ *
+ * The tile is a NON-interactive wrapper because it holds TWO controls: the open
+ * action and the prompt-copy control. A copy button nested inside the open
+ * `<button>` would be interactive content inside interactive content — invalid
+ * HTML, and it breaks keyboard and AT behaviour for both. The caption stays a
+ * pointer-transparent overlay (so the artwork is still the click target) and the
+ * copy control re-enables pointer events for itself.
  */
 function Thumb({ image, onOpen }: { image: StoredImage; onOpen: () => void }): React.JSX.Element {
   const url = useImageUrl(image);
   return (
-    <button
-      type="button"
-      onClick={onOpen}
-      aria-label={`Open image: ${image.prompt}`}
-      className={`group focus-ring focus-visible:focus-ring-on relative block aspect-square w-full overflow-hidden rounded-lg bg-subtle`}
-    >
-      {url !== null && (
-        <img
-          src={url}
-          alt={image.prompt}
-          loading="lazy"
-          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-        />
-      )}
-      <span className="tile-caption group-hover:opacity-100 group-focus-visible:opacity-100">
-        <span className="line-clamp-2 text-left">{image.prompt}</span>
+    <div className="group relative aspect-square w-full overflow-hidden rounded-lg bg-subtle">
+      <button
+        type="button"
+        onClick={onOpen}
+        aria-label={`Open image: ${image.prompt}`}
+        className={`focus-ring focus-visible:focus-ring-on block h-full w-full`}
+      >
+        {url !== null && (
+          <img
+            src={url}
+            alt={image.prompt}
+            loading="lazy"
+            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+          />
+        )}
+      </button>
+      <span className="tile-caption group-hover:opacity-100 group-focus-within:opacity-100">
+        <span className="flex w-full min-w-0 items-end justify-between gap-2">
+          <span className="line-clamp-2 min-w-0 text-left">{image.prompt}</span>
+          {/*
+            The copy control copies the stored prompt, NOT the two clamped lines
+            the caption shows. It appears on hover (pointer) and on focus
+            (keyboard, via `group-focus-within`), and `.tile-copy` keeps it
+            ALWAYS visible where no hover exists (touch) — a control nobody can
+            reveal is not a control.
+          */}
+          <span className="tile-copy pointer-events-auto shrink-0 group-hover:opacity-100 group-focus-within:opacity-100">
+            <CopyButton
+              text={image.prompt}
+              label={`Copy prompt: ${image.prompt}`}
+              variant="invert"
+            />
+          </span>
+        </span>
       </span>
-    </button>
+    </div>
   );
 }
 
@@ -82,7 +107,17 @@ function Lightbox(props: {
       <div className="mt-3 max-h-[45vh] shrink-0 overflow-y-auto">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <p className="text-body">{image.prompt}</p>
+            {/*
+              The prompt and its copy control on ONE row: the primary case for
+              copying is "I am looking at the full prompt", so the control sits
+              where the prompt is, not in the button strip below. `variant`
+              `invert` is the on-photo role, because the lightbox is a dark
+              photo surface in BOTH themes.
+            */}
+            <div className="flex items-start gap-3">
+              <p className="min-w-0 flex-1 text-body">{image.prompt}</p>
+              <CopyButton text={image.prompt} label="Copy prompt" variant="invert" />
+            </div>
             <p className="font-mono text-caption opacity-80">{image.model}</p>
             <p className="text-caption opacity-80">
               {new Date(image.createdAt).toLocaleString()} · {image.width}×{image.height}
