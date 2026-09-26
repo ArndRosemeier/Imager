@@ -30,6 +30,7 @@ the subagent registry and `pgrep -af "vites[t]"` before acting on it.
 | prompt copy button (ledger row 22) | `cc85e56` / `d30bdb3` | Full gate exit 0 (21 files / **96** tests, `.gate-logs/cos-verify-cc85e56.log`). CoS verified the load-bearing CSS in the BUILT stylesheet: `.tile-copy{opacity:0}` (19946) vs `group-focus-within:opacity-100` (21849) in the SAME layer, so keyboard focus reveals the control — a control hidden by opacity stays tabbable, so this mattered. Writer's real-browser clipboard read-back: exact untruncated prompt. Own probe `.gate-logs/cos-focus/check.mjs`. LIVE (build publishes). |
 | save all + per-image save (ledger row 25) | `992868d` / `f0dc996` | Full gate exit 0 (26 files / **133** tests, `.gate-logs/cos-verify-992868d.log`). CoS built the backup archive itself with a SENTINEL key and scanned raw bytes + every entry: key absent; manifest settings = exactly [imageModel, refineChatModel]. Mode A = images only, stored bytes intact. Writer's real-browser evidence: 3+4 entry archives, per-image sha256 matching Node, native `showSaveFilePicker` present. LIVE (build publishes). |
 | load backup / import (ledger row 27) | `421f9e7` / `450bb96` | Full gate exit 0 (31 files / **177** tests, `.gate-logs/cos-verify-import2.log`, read from the top). CoS independent 4-part check (built from the app's own exporter): apply-settings keeps a sentinel live key byte-identical AND takes archived models; keep-settings keeps both; ONE tampered byte refused at read with zero writes; a manifest re-adding the key refused by the strict schema. Writer's real-browser round trip: export → wipe → import (3 added) → re-import Keep both (3 skipped) → Replace existing (3 replaced), key unchanged throughout. LIVE.
+| Gallery as its own tab (ledger row 30) | `64b583d` / `e3a6a05` | Full gate exit 0 (33 files / **184** tests, `.gate-logs/cos-verify-gallery-tab2.log`, read from the top). Tabs: Generate \| Gallery \| Chat \| Settings. CoS independent checks: grid PRESENT on Gallery, ABSENT on Generate; empty state honest; stored image lists on arrival (justifies deleting `galleryVersion`). Audited the 5 edited existing test files: navigation-only, no assertion weakened. Writer's browser evidence: 4 tabs dark+light at 1440 and 430, 4 grid columns / 2 at narrow, freshness 8→9 with no reload. LIVE.
 ## In flight
 None.
 
@@ -42,6 +43,8 @@ None.
 None. (Auto-routers stay — ledger row 7.)
 
 ## Known debt / notes
+- The cross-tab "Refine this" JUMP is proven in jsdom + by injection, not driven in the browser script (which measured tabs/grid/freshness). Chat attach remains on its jsdom pins (row 30).
+- Deleted as dead in row 30: `galleryVersion`, Gallery's `version` prop, both panels' `onFinished`, the narrow Controls sheet, `.panel-sheet`. Kept: `.panel-backdrop` + `[data-panel='closed']` (the chat list uses them).
 - The native file-picker DIALOG cannot be driven headlessly (recorded as unverified in row 25); the fallback anchor path and the archive bytes ARE verified.
 - Import (mode-B LOAD) is REQUIRED by the owner and NOT built: own slice, writes from the row-25 format spec. Owner decisions to honour: conflict = ask at import time; settings restore = choose per import.
 - `deleteImage` does not scrub conversations, so dangling image ids exist by design; an import must tolerate them.
