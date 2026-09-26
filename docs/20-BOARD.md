@@ -32,6 +32,7 @@ the subagent registry and `pgrep -af "vites[t]"` before acting on it.
 | load backup / import (ledger row 27) | `421f9e7` / `450bb96` | Full gate exit 0 (31 files / **177** tests, `.gate-logs/cos-verify-import2.log`, read from the top). CoS independent 4-part check (built from the app's own exporter): apply-settings keeps a sentinel live key byte-identical AND takes archived models; keep-settings keeps both; ONE tampered byte refused at read with zero writes; a manifest re-adding the key refused by the strict schema. Writer's real-browser round trip: export → wipe → import (3 added) → re-import Keep both (3 skipped) → Replace existing (3 replaced), key unchanged throughout. LIVE.
 | Gallery as its own tab (ledger row 30) | `64b583d` / `e3a6a05` | Full gate exit 0 (33 files / **184** tests, `.gate-logs/cos-verify-gallery-tab2.log`, read from the top). Tabs: Generate \| Gallery \| Chat \| Settings. CoS independent checks: grid PRESENT on Gallery, ABSENT on Generate; empty state honest; stored image lists on arrival (justifies deleting `galleryVersion`). Audited the 5 edited existing test files: navigation-only, no assertion weakened. Writer's browser evidence: 4 tabs dark+light at 1440 and 430, 4 grid columns / 2 at narrow, freshness 8→9 with no reload. LIVE.
 | favourites sorted to top (ledger row 32) | `54b004c` / `4178ff3` | Full gate exit 0 (37 files / **198** tests, `.gate-logs/cos-verify-favourites2.log`, read from the top). CoS reproduced both brief errors: `setImageRole` does not exist here (0 grep hits); `db.images.update(id,{favorite})` CORRUPTS bytes (tag → `[object Object]`, read throws) — the safe read→validate→put toggle is asserted and the trap is now an executable test. Writer's browser proof: oldest favourited floats to top in dark/light × wide/narrow. LIVE.
+| sizes + tags + tag bar (ledger row 34) | `6c79857` / `dc59717` | Full gate exit 0 (40 files / **223** tests, `.gate-logs/cos-verify-tags.log`, read from the top). CoS audited the 15 edited test files: removals are renames/v6 bump, additions are `tags: []` on seeds — no assertion weakened. Verified from browser evidence: AND 2 of 8 vs OR 5 of 8 for the same selection; grid tracks 4/8/3 at 1440 (Medium/Small/Large); Small survives a real reload. DB at v6. LIVE.
 ## In flight
 None.
 
@@ -44,6 +45,8 @@ None.
 None. (Auto-routers stay — ledger row 7.)
 
 ## Known debt / notes
+- Tags (row 34): lowercase normalization collapses `Orc`/`orc`/`ORC`; `Orcs` is deliberately NOT merged (renaming/merging is out) — suggestions are the guard. Tags edit in the lightbox only. Filter selection is not persisted; the SIZE preference is (localStorage `imager.gallerySize`).
+- At Small density the tile captions truncate hard; inherent to small tiles, noted not fixed.
 - DEXIE TRAP (row 32/33): `db.images.update(id,{favorite})` deep-clones the record and corrupts `Uint8Array` bytes (`[object Object]`, read throws). ONE-field updates MUST read → `parseImage` → `put` in a transaction. Guard: `tests/db/cos-favourite-toggle.test.ts`.
 - Dispatcher error: an Imager brief named `setImageRole` as the house pattern — that method is in CAMPAIGNER, not here. Do not carry donor-repo specifics into a brief without grepping THIS repo.
 - Ledger: the dispatcher again assigned an already-used row number (31). Read the next free row AT BRIEF TIME.
