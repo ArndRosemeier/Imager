@@ -9,6 +9,18 @@
     />
     <title>Imager</title>
     <!--
+      Icons. The SVG comes first so browsers that support it get the crisp
+      vector at every size; the PNGs are the fallback, and `apple-touch-icon` is
+      what iOS reads when the app is added to the home screen (it does not read
+      SVG favicons). The paths are RELATIVE on purpose: the app is served under
+      a subpath (`/imager/`), so a root-absolute `/favicon.svg` would 404 there.
+      Vite copies `public/` to the build root; the PNGs are generated from
+      `public/favicon.svg` by `scripts/renderIcons.mjs`.
+    -->
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png" />
+    <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+    <!--
       THE anti-flash theme bootstrap — the ONE inline script in this app.
       It must run BEFORE first paint: a persisted "light" choice has to be on
       <html> already, otherwise the dark default paints first and the app
