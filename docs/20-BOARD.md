@@ -31,6 +31,7 @@ the subagent registry and `pgrep -af "vites[t]"` before acting on it.
 | save all + per-image save (ledger row 25) | `992868d` / `f0dc996` | Full gate exit 0 (26 files / **133** tests, `.gate-logs/cos-verify-992868d.log`). CoS built the backup archive itself with a SENTINEL key and scanned raw bytes + every entry: key absent; manifest settings = exactly [imageModel, refineChatModel]. Mode A = images only, stored bytes intact. Writer's real-browser evidence: 3+4 entry archives, per-image sha256 matching Node, native `showSaveFilePicker` present. LIVE (build publishes). |
 | load backup / import (ledger row 27) | `421f9e7` / `450bb96` | Full gate exit 0 (31 files / **177** tests, `.gate-logs/cos-verify-import2.log`, read from the top). CoS independent 4-part check (built from the app's own exporter): apply-settings keeps a sentinel live key byte-identical AND takes archived models; keep-settings keeps both; ONE tampered byte refused at read with zero writes; a manifest re-adding the key refused by the strict schema. Writer's real-browser round trip: export → wipe → import (3 added) → re-import Keep both (3 skipped) → Replace existing (3 replaced), key unchanged throughout. LIVE.
 | Gallery as its own tab (ledger row 30) | `64b583d` / `e3a6a05` | Full gate exit 0 (33 files / **184** tests, `.gate-logs/cos-verify-gallery-tab2.log`, read from the top). Tabs: Generate \| Gallery \| Chat \| Settings. CoS independent checks: grid PRESENT on Gallery, ABSENT on Generate; empty state honest; stored image lists on arrival (justifies deleting `galleryVersion`). Audited the 5 edited existing test files: navigation-only, no assertion weakened. Writer's browser evidence: 4 tabs dark+light at 1440 and 430, 4 grid columns / 2 at narrow, freshness 8→9 with no reload. LIVE.
+| favourites sorted to top (ledger row 32) | `54b004c` / `4178ff3` | Full gate exit 0 (37 files / **198** tests, `.gate-logs/cos-verify-favourites2.log`, read from the top). CoS reproduced both brief errors: `setImageRole` does not exist here (0 grep hits); `db.images.update(id,{favorite})` CORRUPTS bytes (tag → `[object Object]`, read throws) — the safe read→validate→put toggle is asserted and the trap is now an executable test. Writer's browser proof: oldest favourited floats to top in dark/light × wide/narrow. LIVE.
 ## In flight
 None.
 
@@ -43,6 +44,9 @@ None.
 None. (Auto-routers stay — ledger row 7.)
 
 ## Known debt / notes
+- DEXIE TRAP (row 32/33): `db.images.update(id,{favorite})` deep-clones the record and corrupts `Uint8Array` bytes (`[object Object]`, read throws). ONE-field updates MUST read → `parseImage` → `put` in a transaction. Guard: `tests/db/cos-favourite-toggle.test.ts`.
+- Dispatcher error: an Imager brief named `setImageRole` as the house pattern — that method is in CAMPAIGNER, not here. Do not carry donor-repo specifics into a brief without grepping THIS repo.
+- Ledger: the dispatcher again assigned an already-used row number (31). Read the next free row AT BRIEF TIME.
 - The cross-tab "Refine this" JUMP is proven in jsdom + by injection, not driven in the browser script (which measured tabs/grid/freshness). Chat attach remains on its jsdom pins (row 30).
 - Deleted as dead in row 30: `galleryVersion`, Gallery's `version` prop, both panels' `onFinished`, the narrow Controls sheet, `.panel-sheet`. Kept: `.panel-backdrop` + `[data-panel='closed']` (the chat list uses them).
 - The native file-picker DIALOG cannot be driven headlessly (recorded as unverified in row 25); the fallback anchor path and the archive bytes ARE verified.
