@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 
-import { EmptyState, CopyButton, SaveButton } from '@/components/ui';
+import { EmptyState, CopyButton, FavoriteButton, SaveButton } from '@/components/ui';
 import { buttonClass } from '@/components/styles';
-import { deleteImage, getRun, listImages } from '@/db/imageRepo';
+import { deleteImage, getRun, listImages, setImageFavorite } from '@/db/imageRepo';
 import { type Run, type StoredImage } from '@/domain/image';
 import { imageFileName } from '@/features/export/exportLibrary';
 import { useImageUrl } from '@/features/gallery/useImageUrl';
@@ -15,14 +15,22 @@ import { toastError } from '@/lib/toast';
  * repeating it was noise; it lives in the full view, where it is read once and
  * on purpose.
  *
- * The tile is a NON-interactive wrapper because it holds TWO controls: the open
- * action and the prompt-copy control. A copy button nested inside the open
- * `<button>` would be interactive content inside interactive content — invalid
- * HTML, and it breaks keyboard and AT behaviour for both. The caption stays a
- * pointer-transparent overlay (so the artwork is still the click target) and the
- * copy control re-enables pointer events for itself.
+ * The tile is a NON-interactive wrapper because it holds THREE controls: the
+ * open action, the favourite star and the prompt-copy control. A control nested
+ * inside the open `<button>` would be interactive content inside interactive
+ * content — invalid HTML, and it breaks keyboard and AT behaviour for both. The
+ * caption stays a pointer-transparent overlay (so the artwork is still the click
+ * target) and each control re-enables pointer events for itself.
  */
-function Thumb({ image, onOpen }: { image: StoredImage; onOpen: () => void }): React.JSX.Element {
+function Thumb({
+  image,
+  onOpen,
+  onToggleFavorite,
+}: {
+  image: StoredImage;
+  onOpen: () => void;
+  onToggleFavorite: () => Promise<void>;
+}): React.JSX.Element {
   const url = useImageUrl(image);
   return (
     <div className="group relative aspect-square w-full overflow-hidden rounded-lg bg-subtle">
@@ -45,18 +53,32 @@ function Thumb({ image, onOpen }: { image: StoredImage; onOpen: () => void }): R
         <span className="flex w-full min-w-0 items-end justify-between gap-2">
           <span className="line-clamp-2 min-w-0 text-left">{image.prompt}</span>
           {/*
-            The copy control copies the stored prompt, NOT the two clamped lines
-            the caption shows. It appears on hover (pointer) and on focus
-            (keyboard, via `group-focus-within`), and `.tile-copy` keeps it
-            ALWAYS visible where no hover exists (touch) — a control nobody can
-            reveal is not a control.
+            The tile's TWO sibling controls: the favourite star and the prompt
+            copy. Both appear on hover (pointer) and on focus (keyboard, via
+            `group-focus-within`), and `.tile-control` keeps them ALWAYS visible
+            where no hover exists (touch) — a control nobody can reveal is not a
+            control. A FAVOURITE's star stays visible even un-hovered, because it
+            is a status as much as an action (`.tile-favorite-on`).
           */}
-          <span className="tile-copy pointer-events-auto shrink-0 group-hover:opacity-100 group-focus-within:opacity-100">
-            <CopyButton
-              text={image.prompt}
-              label={`Copy prompt: ${image.prompt}`}
-              variant="invert"
-            />
+          <span className="flex shrink-0 items-center gap-1">
+            <span
+              className={`tile-control pointer-events-auto group-hover:opacity-100 group-focus-within:opacity-100 ${
+                image.favorite ? 'tile-favorite-on' : ''
+              }`}
+            >
+              <FavoriteButton
+                favorite={image.favorite}
+                onToggle={onToggleFavorite}
+                variant="invert"
+              />
+            </span>
+            <span className="tile-control pointer-events-auto group-hover:opacity-100 group-focus-within:opacity-100">
+              <CopyButton
+                text={image.prompt}
+                label={`Copy prompt: ${image.prompt}`}
+                variant="invert"
+              />
+            </span>
           </span>
         </span>
       </span>
@@ -68,6 +90,7 @@ function Lightbox(props: {
   image: StoredImage;
   onClose: () => void;
   onDeleted: () => void;
+  onToggleFavorite: () => Promise<void>;
   onRefine?: (() => void) | undefined;
   onChat?: (() => void) | undefined;
 }): React.JSX.Element {
@@ -129,6 +152,16 @@ function Lightbox(props: {
           </div>
         </div>
         <div className="mt-3 flex flex-wrap gap-2">
+          {/*
+            The SAME favourite control as the tile (rule 4), on the lightbox's
+            dark surface in both themes — so the two surfaces cannot disagree
+            about whether this image is a favourite.
+          */}
+          <FavoriteButton
+            favorite={image.favorite}
+            onToggle={props.onToggleFavorite}
+            variant="invert"
+          />
           {url !== null && (
             /*
               One save control, through the ONE save seam (docs/17 row 25): a
@@ -203,6 +236,16 @@ export function Gallery({
       setLoadError(toError(error));
     });
   }, [localVersion]);
+  /**
+   * ONE favourite write for BOTH surfaces (rule 4). The repo updates the single
+   * field without touching the row's bytes, and then the list is re-read — which
+   * is also what re-applies the favourite-first order. The lightbox and the tile
+   * cannot disagree afterwards, because both render the same freshly read row.
+   */
+  const toggleFavorite = (image: StoredImage): Promise<void> =>
+    setImageFavorite(image.id, !image.favorite).then(() => {
+      setLocalVersion((v) => v + 1);
+    });
   if (loadError !== null) throw loadError;
   if (images === null) return <p className="text-body text-muted">Loading gallery…</p>;
   const open = images.find((i) => i.id === openId);
@@ -222,6 +265,7 @@ export function Gallery({
               onOpen={() => {
                 setOpenId(image.id);
               }}
+              onToggleFavorite={() => toggleFavorite(image)}
             />
           ))}
         </div>
@@ -236,6 +280,7 @@ export function Gallery({
             setOpenId(null);
             setLocalVersion((v) => v + 1);
           }}
+          onToggleFavorite={() => toggleFavorite(open)}
           onRefine={
             onRefine === undefined
               ? undefined

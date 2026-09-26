@@ -28,6 +28,14 @@ export const storedImageSchema = z.strictObject({
    * type cannot be optional without making every stored row ambiguous.
    */
   runId: z.string(),
+  /**
+   * Whether the owner marked this image a favourite (docs/17 row 32). Stored
+   * data, NOT an index: it changes the gallery's ORDER, never which rows are
+   * queried. `.default(false)` is what makes the absence meaningful — a row
+   * written before favourites existed reads as "not a favourite", which is
+   * exactly what it was (the repo merges the same default in `parseImage`).
+   */
+  favorite: z.boolean().default(false),
 });
 export type StoredImage = z.infer<typeof storedImageSchema>;
 

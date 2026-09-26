@@ -112,13 +112,20 @@ function image(overrides: Partial<StoredImage> & { id: string }): StoredImage {
     source: 'generated',
     createdAt: 1_700_000_000_000,
     runId: 'run-1',
+    favorite: false,
     ...overrides,
   };
 }
 
 const IMAGES: StoredImage[] = [
   image({ id: 'image-png', bytes: new Uint8Array([9, 8, 7]), mimeType: 'image/png' }),
-  image({ id: 'image-jpeg', bytes: new Uint8Array([6, 5, 4]), mimeType: 'image/jpeg' }),
+  // A FAVOURITE, so the round trip below pins `true` as well as the default.
+  image({
+    id: 'image-jpeg',
+    bytes: new Uint8Array([6, 5, 4]),
+    mimeType: 'image/jpeg',
+    favorite: true,
+  }),
   image({
     id: 'image-hostile',
     bytes: new Uint8Array([3, 2, 1]),
@@ -368,7 +375,8 @@ it('ROUND TRIP: the archive alone rebuilds every row, and every pointer resolves
     expect(meta, `image ${source.id}`).toBeDefined();
     if (meta === undefined) continue;
     const { fileName, byteLength, sha256, ...row } = meta;
-    // `row` IS the `StoredImage` row, minus the bytes — nothing missing.
+    // `row` IS the `StoredImage` row, minus the bytes — nothing missing, and the
+    // favourite flag travels with it (docs/17 row 32).
     expect(row).toEqual({
       id: source.id,
       mimeType: source.mimeType,
@@ -379,6 +387,7 @@ it('ROUND TRIP: the archive alone rebuilds every row, and every pointer resolves
       source: source.source,
       createdAt: source.createdAt,
       runId: source.runId,
+      favorite: source.favorite,
     });
     expect(entries[fileName] !== undefined).toBe(true);
     expect(byteLength).toBe(source.bytes.length);
@@ -429,6 +438,11 @@ it('the per-image manifest entry schema refuses a row missing its integrity fiel
     sha256: sha256Hex(new Uint8Array([1, 2, 3])),
   };
   expect(exportManifestImageSchema.safeParse(complete).success).toBe(true);
+  // `favorite` is ADDITIVE: an entry written before favourites existed (the
+  // object above has no such key) reads as NOT a favourite rather than failing
+  // (docs/17 row 32), and the flag survives when it IS there.
+  expect(exportManifestImageSchema.parse(complete).favorite).toBe(false);
+  expect(exportManifestImageSchema.parse({ ...complete, favorite: true }).favorite).toBe(true);
   for (const field of ['fileName', 'byteLength', 'sha256', 'runId', 'createdAt', 'source']) {
     const { [field as keyof typeof complete]: _dropped, ...rest } = complete;
     expect(exportManifestImageSchema.safeParse(rest).success, `missing ${field}`).toBe(false);

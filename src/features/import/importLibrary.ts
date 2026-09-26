@@ -350,6 +350,9 @@ function imageRow(meta: ExportManifestImage, bytes: Uint8Array<ArrayBuffer>): St
     source: meta.source,
     createdAt: meta.createdAt,
     runId: meta.runId,
+    // Already defaulted to `false` by the manifest schema when the archive was
+    // written before favourites existed (docs/17 row 32).
+    favorite: meta.favorite,
   });
 }
 

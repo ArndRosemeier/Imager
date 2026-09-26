@@ -93,6 +93,7 @@ async function seedSource(overrides: Partial<StoredImage> = {}): Promise<void> {
     source: 'generated',
     createdAt: 1,
     runId: 'seed-run',
+    favorite: false,
     ...overrides,
   });
 }

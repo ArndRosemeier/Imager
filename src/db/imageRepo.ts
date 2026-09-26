@@ -11,15 +11,16 @@ import { imageSize } from '@/lib/imageSize';
 /**
  * zod at the read boundary: a corrupt row THROWS (rule 1/3).
  *
- * Slice 3 added two fields to shipped rows. Both carry the meaning their
- * absence already had — an image with no recorded provenance is one the app
- * generated, a run with no recorded kind is a plain generation — so the
- * defaults below are the same reading the app had before the fields existed,
- * never a mask for a broken row. Any other missing field still throws.
+ * An ADDITIVE field carries the meaning its ABSENCE already had, so the
+ * defaults below are the reading the app had before the field existed, never a
+ * mask for a broken row: an image with no recorded provenance is one the app
+ * generated, a run with no recorded kind is a plain generation, and an image
+ * with no `favorite` was written before favourites existed — it is NOT a
+ * favourite (docs/17 row 32). Any other missing field still throws.
  */
 function parseImage(row: unknown): StoredImage {
   const record = typeof row === 'object' && row !== null ? (row as Record<string, unknown>) : {};
-  const parsed = storedImageSchema.safeParse({ source: 'generated', ...record });
+  const parsed = storedImageSchema.safeParse({ source: 'generated', favorite: false, ...record });
   if (!parsed.success) throw new Error(`Stored image is corrupt: ${parsed.error.message}`);
   return parsed.data;
 }
@@ -39,9 +40,48 @@ export async function saveRun(run: Run, images: readonly StoredImage[]): Promise
   });
 }
 
-/** Newest first. */
+/**
+ * Favourites first, newest-first within each group (docs/17 row 32). THIS is
+ * the whole ordering seam: the index read already yields newest-first, and the
+ * split into two groups is a STABLE partition of that list, so each group keeps
+ * its own newest-first order. No component re-sorts — a second implementation
+ * of "favourites on top" is the defect `tests/architecture/one-ordering.test.ts`
+ * refuses.
+ */
 export async function listImages(): Promise<StoredImage[]> {
-  return (await db.images.orderBy('createdAt').reverse().toArray()).map(parseImage);
+  const images = (await db.images.orderBy('createdAt').reverse().toArray()).map(parseImage);
+  return [...images.filter((image) => image.favorite), ...images.filter((image) => !image.favorite)];
+}
+
+/**
+ * Flip ONE image's `favorite` flag, writing ONLY that field's value: the row is
+ * read, validated through `parseImage` (which supplies the pre-field default for
+ * a legacy row) and written back with the flag changed. The BYTES are never
+ * re-encoded — they go back exactly as they were read, and the pin in
+ * `tests/db/imageRepo.test.ts` compares the whole raw row before/after.
+ *
+ * WHY NOT `db.images.update(id, { favorite })`, the obvious partial update: it
+ * is NOT safe for a row that carries a `Uint8Array`. Dexie's `Table.update` →
+ * `Collection.modify` runs the record through Dexie's own `deepClone`, which
+ * passes a typed array through ONLY when it recognises its constructor by
+ * identity in Dexie's captured global. A `Uint8Array` from another realm — the
+ * jsdom test environment, and any future case where the row crosses one — is
+ * cloned into a look-alike object with no typed-array internal slot, so the
+ * stored `bytes` stops being a `Uint8Array` and the NEXT read throws "Stored
+ * image is corrupt" (MEASURED: the stored value's tag became `[object Object]`,
+ * constructor `Object`; `.gate-logs/favourites/dexie-update-probe*.log`). The
+ * read-validate-put below goes through IndexedDB's own structured clone, which
+ * is realm-correct — and it is what makes "only the flag changed" provable.
+ *
+ * ONE transaction, so a delete racing this toggle cannot resurrect the row. A
+ * missing row is a LOUD failure rather than a silent no-op (rule 1).
+ */
+export async function setImageFavorite(id: string, favorite: boolean): Promise<void> {
+  await db.transaction('rw', db.images, async () => {
+    const row = await db.images.get(id);
+    if (row === undefined) throw new Error(`No stored image with id "${id}" to update.`);
+    await db.images.put({ ...parseImage(row), favorite });
+  });
 }
 
 export async function listRuns(): Promise<Run[]> {
@@ -101,6 +141,8 @@ export async function buildGeneratedImages(input: {
         source: 'generated',
         createdAt: input.createdAt + index,
         runId: input.runId,
+        // A brand-new image is nobody's favourite until the owner says so.
+        favorite: false,
       }),
     );
   }
@@ -134,6 +176,7 @@ export async function saveUploadedImage(
     source: 'uploaded',
     createdAt,
     runId: '',
+    favorite: false,
   };
   await db.images.put(storedImageSchema.parse(image));
   return image;

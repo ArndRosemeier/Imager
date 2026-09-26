@@ -98,12 +98,19 @@ function image(overrides: Partial<StoredImage> & { id: string }): StoredImage {
     source: 'generated',
     createdAt: 1_700_000_000_000,
     runId: 'run-1',
+    favorite: false,
     ...overrides,
   };
 }
 
 const IMAGE_A = image({ id: 'image-a', bytes: new Uint8Array([9, 8, 7, 6]) });
-const IMAGE_B = image({ id: 'image-b', bytes: new Uint8Array([6, 5, 4]), mimeType: 'image/jpeg' });
+// A FAVOURITE, so the round trip pins that the flag survives a backup (row 32).
+const IMAGE_B = image({
+  id: 'image-b',
+  bytes: new Uint8Array([6, 5, 4]),
+  mimeType: 'image/jpeg',
+  favorite: true,
+});
 
 const SOURCE: ExportSource = {
   images: [IMAGE_A, IMAGE_B],
@@ -196,6 +203,9 @@ it('ROUND TRIP: a good archive rebuilds every row, byte-identical, with its ids'
   expect(Array.from(storedB?.bytes ?? new Uint8Array())).toEqual(Array.from(IMAGE_B.bytes));
   expect(storedA?.prompt).toBe(IMAGE_A.prompt);
   expect(storedB?.mimeType).toBe('image/jpeg');
+  // The favourite flag is part of the row, so a backup preserves it (row 32).
+  expect(storedA?.favorite).toBe(false);
+  expect(storedB?.favorite).toBe(true);
 
   const storedRun = await db.runs.get('run-1');
   const storedConversation = await db.conversations.get('conversation-1');
@@ -326,6 +336,32 @@ it('a file that is not a ZIP at all is refused loudly', async () => {
   await expect(readLibraryArchive(new Uint8Array([1, 2, 3, 4]))).rejects.toThrow(
     /not a readable ZIP archive/,
   );
+});
+
+/* ------------------------------------------------- an archive from BEFORE */
+
+it('an archive exported BEFORE favourites existed imports as false, not a failure', async () => {
+  /*
+   * Exactly what a pre-favourites build wrote: no `favorite` key on any image
+   * entry. The manifest is a `strictObject`, so the field's `.default(false)` is
+   * the ONE thing standing between an old backup and a zod refusal — and the
+   * reading it supplies ("not a favourite") is the meaning the absence already
+   * had (docs/17 row 32).
+   */
+  const older = await archiveWithManifestEdit((manifest) => {
+    const images = manifest.images as Record<string, unknown>[];
+    for (const entry of images) delete entry.favorite;
+    expect(images.length).toBeGreaterThan(0);
+    expect(images.every((entry) => !('favorite' in entry))).toBe(true);
+  });
+
+  const archive = await readLibraryArchive(older);
+  expect(archive.manifest.images.every((meta) => !meta.favorite)).toBe(true);
+
+  const result = await applyImport(archive, choices());
+  expect(result.images).toEqual({ added: 2, replaced: 0, skipped: 0 });
+  expect((await db.images.get('image-a'))?.favorite).toBe(false);
+  expect((await db.images.get('image-b'))?.favorite).toBe(false);
 });
 
 /* --------------------------------------------------------- conflict choices */

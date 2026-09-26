@@ -31,6 +31,14 @@ export class ImagerDb extends Dexie {
     // table and moves nothing (pin: tests/db/migration.test.ts seeds a v1
     // settings row and v3 image/run rows, then opens at v4 and reads them).
     this.version(4).stores({ conversations: 'id, updatedAt' });
+    // v5 (favourites): `StoredImage.favorite` is stored data, NOT an index — the
+    // gallery still queries by `createdAt` and splits the two groups in the repo
+    // (`listImages`), so no store schema moves and every v1–v4 row survives
+    // verbatim. Declared anyway, exactly as v3 declared its content change, so
+    // the data-shape change is visible next to the indexes that did not change
+    // (pin: tests/db/migration.test.ts — a row written WITHOUT the field reads
+    // as `false` at v5).
+    this.version(5).stores({ images: 'id, createdAt, runId' });
   }
 }
 

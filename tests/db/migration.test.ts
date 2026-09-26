@@ -8,7 +8,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-it('the v1 settings row survives the v4 bump (images + runs + conversations)', async () => {
+it('the v1 settings row survives the v5 bump (images + runs + conversations)', async () => {
   const name = 'imager-migration-test';
   const v1 = new Dexie(name);
   v1.version(1).stores({ settings: 'id' });
@@ -16,34 +16,35 @@ it('the v1 settings row survives the v4 bump (images + runs + conversations)', a
   await v1.table('settings').put(row);
   v1.close();
 
-  const v2 = new ImagerDb(name);
-  await expect(v2.settings.get(SETTINGS_ID)).resolves.toEqual(row);
-  expect(v2.verno).toBe(4);
-  await expect(v2.images.count()).resolves.toBe(0);
-  await expect(v2.runs.count()).resolves.toBe(0);
-  await expect(v2.conversations.count()).resolves.toBe(0);
-  v2.close();
+  const v5 = new ImagerDb(name);
+  await expect(v5.settings.get(SETTINGS_ID)).resolves.toEqual(row);
+  expect(v5.verno).toBe(5);
+  await expect(v5.images.count()).resolves.toBe(0);
+  await expect(v5.runs.count()).resolves.toBe(0);
+  await expect(v5.conversations.count()).resolves.toBe(0);
+  v5.close();
 });
 
 /**
- * The v4 bump adds the `conversations` TABLE to a database whose rows were
- * written by v1 (settings) and v3 (images/runs). Only the new table is
- * declared, so the pin is that nothing else moves: the v1 row, the v3 image
- * and the v3 run all read back with their own meaning at v4.
+ * The v5 bump adds `StoredImage.favorite`. Rows were written by v1 (settings),
+ * v3 (images/runs) and v4 (conversations), and only the EXISTING `images` index
+ * set is redeclared, so the pin is that nothing moves: every row reads back at
+ * v5 with its own meaning — the v3 image WITHOUT a `favorite` key.
  */
-it('v1 and v3 rows survive the v4 conversations bump untouched', async () => {
-  const name = 'imager-migration-test-v4';
+it('v1, v3 and v4 rows survive the v5 favourites bump untouched', async () => {
+  const name = 'imager-migration-test-v5';
   const v1 = new Dexie(name);
   v1.version(1).stores({ settings: 'id' });
   const row = { id: SETTINGS_ID, openRouterApiKey: 'sk-1', imageModel: 'a/b', refineChatModel: '' };
   await v1.table('settings').put(row);
   v1.close();
 
-  const v3 = new Dexie(name);
-  v3.version(1).stores({ settings: 'id' });
-  v3.version(2).stores({ images: 'id, createdAt, runId', runs: 'id, createdAt' });
-  v3.version(3).stores({ images: 'id, createdAt, runId', runs: 'id, createdAt' });
-  await v3.table('images').put({
+  const v4 = new Dexie(name);
+  v4.version(1).stores({ settings: 'id' });
+  v4.version(2).stores({ images: 'id, createdAt, runId', runs: 'id, createdAt' });
+  v4.version(3).stores({ images: 'id, createdAt, runId', runs: 'id, createdAt' });
+  v4.version(4).stores({ conversations: 'id, updatedAt' });
+  await v4.table('images').put({
     id: 'img-1',
     bytes: new Uint8Array([9, 9]),
     mimeType: 'image/png',
@@ -55,7 +56,7 @@ it('v1 and v3 rows survive the v4 conversations bump untouched', async () => {
     createdAt: 7,
     runId: 'run-1',
   });
-  await v3.table('runs').put({
+  await v4.table('runs').put({
     id: 'run-1',
     kind: 'refine',
     prompt: 'v3 run',
@@ -68,18 +69,64 @@ it('v1 and v3 rows survive the v4 conversations bump untouched', async () => {
     createdAt: 7,
     error: null,
   });
-  v3.close();
-
-  const v4 = new ImagerDb(name);
-  expect(v4.verno).toBe(4);
-  await expect(v4.settings.get(SETTINGS_ID)).resolves.toEqual(row);
-  const image = await v4.images.get('img-1');
-  expect(image).toMatchObject({ prompt: 'v3 image', source: 'generated', runId: 'run-1' });
-  expect([...(image?.bytes ?? [])]).toEqual([9, 9]);
-  const run = await v4.runs.get('run-1');
-  expect(run).toMatchObject({ kind: 'refine', inputImageIds: ['img-0'], costUsd: 0.5 });
-  await expect(v4.conversations.count()).resolves.toBe(0);
+  await v4.table('conversations').put({
+    id: 'conv-1',
+    title: 'v4 conversation',
+    model: 'a/b',
+    createdAt: 8,
+    updatedAt: 9,
+    messages: [],
+  });
   v4.close();
+
+  const v5 = new ImagerDb(name);
+  expect(v5.verno).toBe(5);
+  await expect(v5.settings.get(SETTINGS_ID)).resolves.toEqual(row);
+  const image = await v5.images.get('img-1');
+  expect(image).toMatchObject({ prompt: 'v3 image', source: 'generated', runId: 'run-1' });
+  // The stored row was NOT rewritten by the bump: it still has no favourite key
+  // (the READING path supplies the pre-field meaning — the next test).
+  expect(image).not.toHaveProperty('favorite');
+  expect([...(image?.bytes ?? [])]).toEqual([9, 9]);
+  const run = await v5.runs.get('run-1');
+  expect(run).toMatchObject({ kind: 'refine', inputImageIds: ['img-0'], costUsd: 0.5 });
+  await expect(v5.conversations.get('conv-1')).resolves.toMatchObject({ title: 'v4 conversation' });
+  v5.close();
+});
+
+/**
+ * The v5 CONTENT change adds `StoredImage.favorite`. Rows a pre-favourites app
+ * wrote have no such key, so the READING path is what must keep working —
+ * proven on the APP's own database (the same `db` the repositories use) by
+ * writing a pre-field row, reading it through the repo and writing it back.
+ */
+it('a row written WITHOUT favorite reads as false and round-trips', async () => {
+  await db.images.clear();
+  await db.images.put({
+    id: 'img-legacy',
+    bytes: new Uint8Array([4, 5, 6]),
+    mimeType: 'image/png',
+    width: 3,
+    height: 3,
+    prompt: 'written before favourites',
+    model: 'a/b',
+    source: 'generated',
+    createdAt: 3,
+    runId: '',
+  } as never);
+
+  const read = await getImage('img-legacy');
+  expect(read?.favorite).toBe(false);
+  expect(read?.prompt).toBe('written before favourites');
+  expect([...(read?.bytes ?? [])]).toEqual([4, 5, 6]);
+
+  // Round trip: the read row (now carrying the default) writes back and reads
+  // identically — nothing is fabricated and nothing is lost.
+  if (read === undefined) throw new Error('seed failed');
+  await db.images.put(read);
+  const again = await getImage('img-legacy');
+  expect(again).toEqual(read);
+  await db.images.clear();
 });
 
 /**

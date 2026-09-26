@@ -42,6 +42,7 @@ async function seedImage(): Promise<void> {
     source: 'generated',
     createdAt: 1,
     runId: '',
+    favorite: false,
   });
 }
 

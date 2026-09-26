@@ -79,6 +79,14 @@
   --on-warn-surface: #78350f;
   --ok: #166534;
   --overlay: rgba(2, 6, 23, 0.72);
+  /*
+   * The favourite star's ON colour (docs/17 row 32). ONE value in BOTH themes on
+   * purpose: the control is only ever painted on a dark photo surface — the
+   * tile's caption gradient and the lightbox backdrop are the same near-black in
+   * either theme — so a light/dark pair would put the light theme's dark amber
+   * on a dark ground. The contrast floor is against that photo ground.
+   */
+  --favorite: #fbbf24;
 }
 
 .dark {
@@ -450,22 +458,40 @@
 }
 
 /*
- * The tile's copy control: hidden until the tile is hovered or holds keyboard
- * focus (the artwork is the hero, so the chrome stays out of the way), and
- * ALWAYS visible where the device has no hover. That fallback is LOAD-BEARING,
- * not a nicety: Tailwind v4 emits the `group-hover:` rule inside
- * `@media (hover: hover)` (MEASURED in the built CSS and in a real browser,
- * ledger row 22), so on a touch screen the hover reveal does not exist at all —
- * without this block the control would be permanently invisible there.
+ * The tile's HOVER-REVEALED controls: the copy control and the favourite star.
+ * Hidden until the tile is hovered or holds keyboard focus (the artwork is the
+ * hero, so the chrome stays out of the way), and ALWAYS visible where the device
+ * has no hover. That fallback is LOAD-BEARING, not a nicety: Tailwind v4 emits
+ * the `group-hover:` rule inside `@media (hover: hover)` (MEASURED in the built
+ * CSS and in a real browser, ledger row 22), so on a touch screen the hover
+ * reveal does not exist at all — without this block those controls would be
+ * permanently invisible there. ONE class for both controls: the reveal is one
+ * idea (rule 4).
  */
-@utility tile-copy {
+@utility tile-control {
   opacity: 0;
   transition: opacity 150ms ease;
 }
 @media (hover: none) {
-  .tile-copy {
+  .tile-control {
     opacity: 1;
   }
+}
+
+/*
+ * A favourite is a STATUS, not just an action: its star stays visible on the
+ * tile even while the rest of the chrome waits for hover/focus, so the owner can
+ * see what is on top and why. These two rules are deliberately PLAIN CSS rather
+ * than utilities — unlayered rules beat every `@layer`, so `.tile-favorite-on`
+ * cannot lose the cascade to `@utility tile-control`'s `opacity: 0`, and
+ * `.favorite-on` cannot lose it to `btn-invert`'s own `color` (the row-23
+ * lesson: verify the cascade in the BUILT stylesheet, never assume the order).
+ */
+.tile-favorite-on {
+  opacity: 1;
+}
+.favorite-on {
+  color: var(--favorite);
 }
 
 /* The page itself fills the window in both themes (no white band under a

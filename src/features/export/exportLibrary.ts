@@ -50,7 +50,10 @@ export const EXPORT_FORMAT = 'imager-library' as const;
 
 /**
  * The internal format's version. BUMP IT when a manifest field changes meaning
- * or is removed — a future import keys its reader off this number.
+ * or is removed — a future import keys its reader off this number. An ADDED
+ * field with a default does NOT bump it: the reader accepts exactly this number,
+ * so a bump would refuse every backup written before the field existed, which
+ * is the opposite of what the added field is for (docs/17 row 32).
  */
 export const EXPORT_FORMAT_VERSION = 1 as const;
 
@@ -197,6 +200,14 @@ export const exportManifestImageSchema = z.strictObject({
   source: z.enum(IMAGE_SOURCES),
   createdAt: z.number(),
   runId: z.string(),
+  /**
+   * The owner's favourite flag (docs/17 row 32). `.default(false)` is what makes
+   * an archive exported BEFORE this field existed import as "not a favourite"
+   * instead of failing: the manifest is a `strictObject`, so the default is the
+   * one thing standing between an old backup and a zod refusal. Pinned in
+   * tests/import/importLibrary.test.ts.
+   */
+  favorite: z.boolean().default(false),
   /** The stored byte length. */
   byteLength: z.number().int().nonnegative(),
   /** Lowercase hex SHA-256 of the stored bytes. */
@@ -277,6 +288,7 @@ export async function buildManifest(
       source: image.source,
       createdAt: image.createdAt,
       runId: image.runId,
+      favorite: image.favorite,
       byteLength: image.bytes.length,
       sha256: await sha256Hex(image.bytes),
     })),

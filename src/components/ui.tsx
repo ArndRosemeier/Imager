@@ -91,6 +91,63 @@ export function CopyButton({
 }
 
 /**
+ * THE app's favourite control: ONE click flips ONE image's `favorite` flag
+ * (docs/17 row 32), and it is the ONE control both surfaces use — the gallery
+ * tile and the lightbox.
+ *
+ * The WRITE belongs to the caller (`onToggle` is the gallery's one call into the
+ * repo seam), so this control carries no database knowledge and there is exactly
+ * one place a favourite is stored. What it owns is the outcome: while the write
+ * is in flight the control refuses a second click, a FAILURE goes to the app's
+ * error surface (rule 2) and the star does NOT flip, because `favorite` is the
+ * caller's re-read row — this control never claims a favourite that was not
+ * stored (rule 1).
+ *
+ * THE VISIBLE STATE is the star itself (`★` on, `☆` off) plus the `favorite-on`
+ * role class for the ON colour; `aria-pressed` carries the same state to AT, and
+ * the accessible name stays constant because a toggle's name describes the
+ * property, not the action.
+ */
+export function FavoriteButton({
+  favorite,
+  onToggle,
+  variant = 'secondary',
+  className = '',
+}: Readonly<{
+  /** The stored flag, from the caller's row. */
+  favorite: boolean;
+  /** Performs the write; rejects with the real reason on failure. */
+  onToggle: () => Promise<void>;
+  /** The button role, so this control sits in the design system like any other. */
+  variant?: ButtonVariant;
+  /** Extra role-appropriate classes, never a raw colour. */
+  className?: string;
+}>): React.JSX.Element {
+  const [pending, setPending] = useState(false);
+  return (
+    <button
+      type="button"
+      aria-label="Favourite"
+      aria-pressed={favorite}
+      disabled={pending}
+      className={buttonClass(variant, `${favorite ? 'favorite-on' : ''} ${className}`)}
+      onClick={() => {
+        setPending(true);
+        onToggle()
+          .catch((error: unknown) => {
+            toastError('Could not update the favourite', error);
+          })
+          .finally(() => {
+            setPending(false);
+          });
+      }}
+    >
+      {favorite ? '★' : '☆'}
+    </button>
+  );
+}
+
+/**
  * THE app's save control: one click puts bytes on the owner's disk through the
  * `saveFile` seam (the file picker where the browser has one, an anchor
  * download otherwise).

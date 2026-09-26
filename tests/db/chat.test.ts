@@ -41,6 +41,7 @@ function storedImage(id: string, runId: string): StoredImage {
     source: 'generated',
     createdAt: 2,
     runId,
+    favorite: false,
   };
 }
 

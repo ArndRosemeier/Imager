@@ -28,6 +28,7 @@ function image(id: string, prompt: string, filler: number): StoredImage {
     source: 'generated',
     createdAt: 1700000000000,
     runId: '',
+    favorite: false,
   };
 }
 

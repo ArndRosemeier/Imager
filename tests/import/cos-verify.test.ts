@@ -28,6 +28,7 @@ function image(id: string, byte: number): StoredImage {
     source: 'generated',
     createdAt: 1700000000000,
     runId: '',
+    favorite: false,
   };
 }
 

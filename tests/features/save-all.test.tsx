@@ -72,6 +72,7 @@ async function seed(): Promise<void> {
       source: 'generated',
       createdAt: 200,
       runId: 'run-1',
+      favorite: false,
     },
     {
       id: 'seed-jpeg',
@@ -84,6 +85,7 @@ async function seed(): Promise<void> {
       source: 'generated',
       createdAt: 100,
       runId: 'run-1',
+      favorite: false,
     },
   ]);
   await db.runs.put({
