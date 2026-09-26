@@ -12,7 +12,7 @@ import { resetModelCache } from '@/llm/models';
 import { jsonResponse } from '../helpers';
 
 /**
- * docs/17 row 17: the full image view's "Chat with this image" and the
+ * docs/17 row 18: the full image view's "Chat with this image" and the
  * cross-tab request that carries it into the composer's EXISTING staged
  * attachment state (row 16).
  */

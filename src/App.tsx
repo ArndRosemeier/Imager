@@ -60,7 +60,7 @@ export function App({ initialTab = 'Generate' }: { initialTab?: Tab }): React.JS
   const [panelOpen, setPanelOpen] = useState(false);
   /**
    * A one-shot "stage this gallery image in the chat composer" request
-   * (docs/17 row 17). It lives here because the tab does: the Gallery sits
+   * (docs/17 row 18). It lives here because the tab does: the Gallery sits
    * inside `GenerateArea` and the composer in `ChatArea`, and neither may own
    * the other's state.
    */

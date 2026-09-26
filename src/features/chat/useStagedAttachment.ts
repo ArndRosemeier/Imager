@@ -12,7 +12,7 @@ import { toastError } from '@/lib/toast';
  */
 
 /**
- * The ONE staged-attachment state for the chat composer (docs/17 row 17).
+ * The ONE staged-attachment state for the chat composer (docs/17 row 18).
  *
  * BOTH ways in — the composer's file control AND a gallery image handed over by
  * `App` as a `ChatAttachRequest` — land in THIS state. The state itself (not
@@ -74,7 +74,7 @@ export function useStagedAttachment(
     if (attachRequest === undefined) return;
     let cancelled = false;
     // The image is an ordinary gallery row, so staging it is a Dexie read —
-    // NO copy, NO re-upload and NO request (docs/17 row 17).
+    // NO copy, NO re-upload and NO request (docs/17 row 18).
     getImage(attachRequest.imageId)
       .then(
         (image) => {

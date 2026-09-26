@@ -7,7 +7,7 @@ import { sourceFiles } from '../helpers';
 
 
 /**
- * THE design-system pins for the beauty pass (docs/17 row 19).
+ * THE design-system pins for the beauty pass (docs/17 row 20).
  *
  * These are source/CSS-level pins on purpose: jsdom computes no colour and no
  * font, so "the app has a type scale", "no component invents a raw colour",

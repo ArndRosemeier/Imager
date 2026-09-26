@@ -1,6 +1,6 @@
 /**
  * A one-shot request to stage a gallery image in the chat composer, raised by
- * the full image view ("Chat with this image", docs/17 row 17).
+ * the full image view ("Chat with this image", docs/17 row 18).
  *
  * WHY it has to travel through a value: the lightbox lives in `GenerateArea`
  * and the composer in `ChatArea`, and the tab that decides which of them is

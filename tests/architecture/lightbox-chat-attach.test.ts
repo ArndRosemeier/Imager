@@ -4,7 +4,7 @@ import { expect, it } from 'vitest';
 import { sourceFiles } from '../helpers';
 
 /**
- * SOURCE-LEVEL pins for docs/17 row 17. jsdom computes no layout, so the
+ * SOURCE-LEVEL pins for docs/17 row 18. jsdom computes no layout, so the
  * full-viewport claim cannot be measured here (it IS measured in a real
  * browser — see the ledger row); what CAN be pinned is the shape that made the
  * old cap possible.
@@ -43,7 +43,7 @@ it('the dialog keeps its accessible name and the metadata survives the bigger im
   expect(galleryCode).toContain('Run cost ');
 });
 
-// Rule 4 / docs/17 row 17: the gallery's "Chat with this image" folds into the
+// Rule 4 / docs/17 row 18: the gallery's "Chat with this image" folds into the
 // composer's EXISTING staged-attachment state (row 16). A second `StoredImage[]`
 // staging state anywhere in src/ would be a second attachment mechanism.
 //

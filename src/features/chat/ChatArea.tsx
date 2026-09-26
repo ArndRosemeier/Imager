@@ -135,7 +135,7 @@ export function ChatArea({
   attachRequest,
   onAttachConsumed,
 }: Readonly<{
-  /** A gallery image the lightbox asked to stage (docs/17 row 17), or undefined. */
+  /** A gallery image the lightbox asked to stage (docs/17 row 18), or undefined. */
   attachRequest: ChatAttachRequest | undefined;
   /** Called with the staged request's nonce so `App` can clear it (once). */
   onAttachConsumed: (nonce: number) => void;
