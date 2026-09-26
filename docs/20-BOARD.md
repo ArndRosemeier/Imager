@@ -26,6 +26,7 @@ the subagent registry and `pgrep -af "vites[t]"` before acting on it.
 | fix encode bug (ledger rows 14-15) | `ef1a5b0` | Full gate exit 0 (16 files / 67 tests), log `.gate-logs/cos-verify-ef1a5b0.log`. Own real-Chrome reproduction: OffscreenCanvas `toDataURL` = undefined, old call threw the owner's exact TypeError, `convertToBlob` produced a real 1024×512 PNG from 2000×1000. LIVE: public JS sha `1a19eec0…` == local dist. |
 | base image in chat (ledger row 16) | `baa4a9e` | Full gate exit 0 (16 files / 72 tests, `.gate-logs/chat-base-image2.log`); a first run was RED on **eslint only** (an `any` from `expect.stringContaining` in a new test) and was fixed forward before any push. Own injection: the original `content: text` branch restored, sha 15bee9d5→a036c9bc → 3 pins RED, restored 15bee9d5. LIVE: public JS sha `a7c49957…` == local dist (a first public read showed a transient stale-edge hash; re-read matched). |
 | gallery → chat + full-view layout (ledger row 17) | `bb367d9` / `d79934f` | Full gate exit 0 (18 files / 79 tests, `.gate-logs/cos-verify-bb367d9.log`). Layout verified from code + writer's browser evidence: image 734×734 in a 1400×900 viewport (old `70vh` cap = 630); the cap string is gone from `src/` and the built CSS. LIVE: public JS sha `58bdc257…` == local dist. |
+| beauty pass (ledger row 20) | `3bb7012` / `3f2cbe3` | Full gate exit 0 (19 files / **88** tests, `.gate-logs/cos-verify-beauty.log`), typecheck + eslint + vitest. CoS viewed the writer's real-browser screenshots in BOTH themes (`.gate-logs/beauty/after-*.png`): art-forward grid, one compact bar, controls rail, decluttered captions, chat reads as a conversation. Contrast re-measured by the writer from the built CSS (accent 6.31/6.29, body 15.21/16.96, muted 6.40-7.56) and now floored by `tests/architecture/design-system.test.ts`. LIVE and intended (a build publishes).
 ## In flight
 None.
 
@@ -38,6 +39,9 @@ None.
 None. (Auto-routers stay — ledger row 7.)
 
 ## Known debt / notes
+- LEDGER NUMBERING (row 21, repaired): the dispatcher twice gave the same number to different rows (append-without-reading-next-free, then a collision). Fix + the rule are recorded in ledger row 21. **Read the next free row number BEFORE writing the brief.**
+- Beauty pass UNVERIFIED on: resizing across the 1024px rail/sheet boundary, and the narrow-screen conversations list still paints above the thread.
+- Design tokens: `.gate-logs/beauty/` holds the before/after screenshots, `capture.mjs` (dispatcher's loop) and `writer-check.mjs` (writer's). Both are gitignored evidence.
 - A CDN read can be STALE mid-deploy: one public fetch returned a hash that did not match `dist` while the size did; the next fetch matched. Re-read before diagnosing a deploy problem (do not loop).
 - Slice 3 style: `expect.stringContaining` in a test trips `@typescript-eslint/no-unsafe-assignment` (an `any`); assert explicitly.
 - A browser-only API behind a jsdom stand-in can ship broken (ledger rows 14/15): doubles must mirror the real method name/signature/async-ness, and such an API needs a REAL-BROWSER pin. Dispatcher error logged: a `pkill`-style pattern matched its own shell and killed the command (the same self-match class as the gate probe, ledger row 6) — kill by PID from a PID list captured in an earlier call.
