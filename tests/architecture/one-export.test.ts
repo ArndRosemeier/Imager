@@ -19,15 +19,40 @@ function codeFiles(): { file: string; text: string }[] {
   return SRC.map((file) => ({ file, text: stripComments(readFileSync(file, 'utf8')) }));
 }
 
-it('exactly one file builds a ZIP — the export seam, with the one zip dependency', () => {
+it('exactly one file imports the zip dependency — the zip seam', () => {
+  // The import slice (docs/17 row 27) needs `unzipSync`, the export slice needs
+  // `zipSync`. Importing `fflate` twice would be two places deciding how the
+  // archive format is compressed; the dependency is folded into ONE module that
+  // both seams reach through (rule 4).
   const hits = SRC.filter((f) => readFileSync(f, 'utf8').includes("from 'fflate'"));
-  expect(hits).toEqual(['src/features/export/exportLibrary.ts']);
+  expect(hits).toEqual(['src/lib/zip.ts']);
   // A second zip library, or a hand-rolled writer, is a second mechanism.
   const otherZips = codeFiles()
-    .filter(({ file }) => file !== 'src/features/export/exportLibrary.ts')
+    .filter(({ file }) => !['src/lib/zip.ts', 'src/features/export/exportLibrary.ts'].includes(file))
     .filter(({ text }) => /\b(jszip|zip\.js|fflate|zipSync|new JSZip)\b/.test(text))
     .map(({ file }) => file);
   expect(otherZips).toEqual([]);
+});
+
+it('exactly one file builds a ZIP — the export seam', () => {
+  const hits = codeFiles()
+    .filter(({ text }) => /\bzipSync\(/.test(text))
+    .map(({ file }) => file);
+  expect(hits).toEqual(['src/features/export/exportLibrary.ts']);
+});
+
+it('exactly one file reads a ZIP — the import seam', () => {
+  const hits = codeFiles()
+    .filter(({ text }) => /\bunzipSync\(/.test(text))
+    .map(({ file }) => file);
+  expect(hits).toEqual(['src/features/import/importLibrary.ts']);
+});
+
+it('exactly one file reaches for the OPEN file picker — the open seam', () => {
+  const hits = codeFiles()
+    .filter(({ text }) => text.includes('showOpenFilePicker'))
+    .map(({ file }) => file);
+  expect(hits).toEqual(['src/lib/openFile.ts']);
 });
 
 it('exactly one file reaches for the file picker — the save seam', () => {

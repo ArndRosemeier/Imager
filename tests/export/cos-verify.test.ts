@@ -71,8 +71,8 @@ it('COS: the sentinel key is nowhere in the backup archive (manifest, entries, r
   expect(Object.keys(manifest.settings).sort()).toEqual(['imageModel', 'refineChatModel']);
 });
 
-it('COS: mode A is images only, with the stored bytes intact and the right extension', async () => {
-  const archive = await buildImagesArchive(source.images, new Date('2026-09-26T09:00:00.000Z'));
+it('COS: mode A is images only, with the stored bytes intact and the right extension', () => {
+  const archive = buildImagesArchive(source.images, new Date('2026-09-26T09:00:00.000Z'));
   const entries = unzipSync(archive.bytes);
   const names = Object.keys(entries);
   expect(names).toHaveLength(2);

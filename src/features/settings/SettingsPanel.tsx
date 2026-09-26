@@ -6,6 +6,7 @@ import { buttonClass } from '@/components/styles';
 import { getSettings, updateSettings } from '@/db/settingsRepo';
 import type { Settings } from '@/domain/settings';
 import { ExportPanel } from '@/features/export/ExportPanel';
+import { ImportPanel } from '@/features/import/ImportPanel';
 import { testApiKey } from '@/llm/key';
 import {
   canGenerateImages,
@@ -24,12 +25,31 @@ export function SettingsPanel(): React.JSX.Element {
   const [modelsError, setModelsError] = useState<string | null>(null);
   const [testing, setTesting] = useState(false);
   const [loadError, setLoadError] = useState<Error | null>(null);
+  /**
+   * Bumped after an import: the export panel's counts and the model pickers
+   * below both read the library/settings once, and an import changes both. A
+   * remount key is the smallest honest refresh — the alternative is a panel
+   * showing a count that is no longer true (rule 1).
+   */
+  const [libraryNonce, setLibraryNonce] = useState(0);
 
   const loadModels = useCallback((apiKey: string) => {
     setModelsError(null);
     listModels(apiKey).then(setModels, (error: unknown) => {
       setModelsError(errorMessage(error));
       toastError('Could not load the OpenRouter model list', error);
+    });
+  }, []);
+
+  /**
+   * After an import (docs/17 row 27) the library and possibly the settings have
+   * changed: re-read the settings and remount the export panel so its counts are
+   * the counts that are actually true.
+   */
+  const refreshAfterImport = useCallback((): void => {
+    setLibraryNonce((nonce) => nonce + 1);
+    getSettings().then(setSettings, (error: unknown) => {
+      toastError('Could not reload settings after the import', error);
     });
   }, []);
 
@@ -120,11 +140,13 @@ export function SettingsPanel(): React.JSX.Element {
       </section>
 
       {/*
-        Getting the work OUT (docs/17 row 25): the two export modes live in the
-        Settings tab, where the app's own state is managed, and both go through
-        the ONE save seam.
+        Getting the work OUT and back IN (docs/17 rows 25 and 27): the two
+        export modes and the one import live in the Settings tab, where the
+        app's own state is managed; the export panel is remounted after an
+        import so its counts cannot go stale.
       */}
-      <ExportPanel />
+      <ExportPanel key={libraryNonce} />
+      <ImportPanel onImported={refreshAfterImport} />
 
       {modelsError !== null && (
         <div

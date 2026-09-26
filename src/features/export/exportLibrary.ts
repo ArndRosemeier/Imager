@@ -26,7 +26,6 @@
  * `libraryStats` and `buildLibraryArchive` touch Dexie, so the format itself is
  * pinned without a browser.
  */
-import { strToU8, zipSync, type Zippable } from 'fflate';
 import { z } from 'zod';
 
 import { listConversations } from '@/db/chatRepo';
@@ -41,6 +40,8 @@ import {
   type StoredImage,
 } from '@/domain/image';
 import type { Settings } from '@/domain/settings';
+import { sha256Hex } from '@/lib/sha256';
+import { strToU8, zipSync, type Zippable } from '@/lib/zip';
 
 /* --------------------------------------------------------------- constants */
 
@@ -201,6 +202,7 @@ export const exportManifestImageSchema = z.strictObject({
   /** Lowercase hex SHA-256 of the stored bytes. */
   sha256: z.string().regex(/^[0-9a-f]{64}$/),
 });
+export type ExportManifestImage = z.infer<typeof exportManifestImageSchema>;
 
 /**
  * THE internal format (version 1). Zod at the boundary in BOTH directions: the
@@ -246,29 +248,6 @@ export interface ExportSource {
   runs: readonly Run[];
   conversations: readonly Conversation[];
   settings: Settings;
-}
-
-/**
- * Lowercase hex SHA-256 of the bytes. Read through a widened structural type
- * for the same reason as the clipboard seam: `lib.dom` declares `crypto.subtle`
- * as unconditionally present, but it needs a SECURE CONTEXT (https or
- * localhost) and is genuinely absent elsewhere — and a hash that silently did
- * not happen would let an import trust bytes nobody verified (rule 1), so the
- * absence is a loud throw.
- */
-async function sha256Hex(bytes: Uint8Array<ArrayBuffer>): Promise<string> {
-  const cryptoApi = globalThis.crypto as {
-    subtle?: { digest: (algorithm: string, data: BufferSource) => Promise<ArrayBuffer> };
-  };
-  if (cryptoApi.subtle === undefined) {
-    throw new Error(
-      'Web Crypto (crypto.subtle) is unavailable in this browser context (it requires a secure https:// page or localhost) — the export cannot be integrity-checked.',
-    );
-  }
-  const digest = await cryptoApi.subtle.digest('SHA-256', bytes);
-  return Array.from(new Uint8Array(digest))
-    .map((byte) => byte.toString(16).padStart(2, '0'))
-    .join('');
 }
 
 /**
