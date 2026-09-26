@@ -27,6 +27,7 @@ the subagent registry and `pgrep -af "vites[t]"` before acting on it.
 | base image in chat (ledger row 16) | `baa4a9e` | Full gate exit 0 (16 files / 72 tests, `.gate-logs/chat-base-image2.log`); a first run was RED on **eslint only** (an `any` from `expect.stringContaining` in a new test) and was fixed forward before any push. Own injection: the original `content: text` branch restored, sha 15bee9d5→a036c9bc → 3 pins RED, restored 15bee9d5. LIVE: public JS sha `a7c49957…` == local dist (a first public read showed a transient stale-edge hash; re-read matched). |
 | gallery → chat + full-view layout (ledger row 17) | `bb367d9` / `d79934f` | Full gate exit 0 (18 files / 79 tests, `.gate-logs/cos-verify-bb367d9.log`). Layout verified from code + writer's browser evidence: image 734×734 in a 1400×900 viewport (old `70vh` cap = 630); the cap string is gone from `src/` and the built CSS. LIVE: public JS sha `58bdc257…` == local dist. |
 | beauty pass (ledger row 20) | `3bb7012` / `3f2cbe3` | Full gate exit 0 (19 files / **88** tests, `.gate-logs/cos-verify-beauty.log`), typecheck + eslint + vitest. CoS viewed the writer's real-browser screenshots in BOTH themes (`.gate-logs/beauty/after-*.png`): art-forward grid, one compact bar, controls rail, decluttered captions, chat reads as a conversation. Contrast re-measured by the writer from the built CSS (accent 6.31/6.29, body 15.21/16.96, muted 6.40-7.56) and now floored by `tests/architecture/design-system.test.ts`. LIVE and intended (a build publishes).
+| prompt copy button (ledger row 22) | `cc85e56` / `d30bdb3` | Full gate exit 0 (21 files / **96** tests, `.gate-logs/cos-verify-cc85e56.log`). CoS verified the load-bearing CSS in the BUILT stylesheet: `.tile-copy{opacity:0}` (19946) vs `group-focus-within:opacity-100` (21849) in the SAME layer, so keyboard focus reveals the control — a control hidden by opacity stays tabbable, so this mattered. Writer's real-browser clipboard read-back: exact untruncated prompt. Own probe `.gate-logs/cos-focus/check.mjs`. LIVE (build publishes). |
 ## In flight
 None.
 
@@ -39,6 +40,8 @@ None.
 None. (Auto-routers stay — ledger row 7.)
 
 ## Known debt / notes
+- Prompt copy: the desktop HOVER reveal path is browser-unverified (headless reports `(hover: none)`); the always-visible touch fallback IS verified. Model-id copy deliberately not built (owner asked for the prompt).
+- Killing by pattern matched the killer's own shell TWICE (ledger row 24). Use capture-to-file then `xargs -r kill < file`, in two calls.
 - LEDGER NUMBERING (row 21, repaired): the dispatcher twice gave the same number to different rows (append-without-reading-next-free, then a collision). Fix + the rule are recorded in ledger row 21. **Read the next free row number BEFORE writing the brief.**
 - Beauty pass UNVERIFIED on: resizing across the 1024px rail/sheet boundary, and the narrow-screen conversations list still paints above the thread.
 - Design tokens: `.gate-logs/beauty/` holds the before/after screenshots, `capture.mjs` (dispatcher's loop) and `writer-check.mjs` (writer's). Both are gitignored evidence.
