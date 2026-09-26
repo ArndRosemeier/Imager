@@ -2,14 +2,22 @@ import { useCallback, useRef, useState } from 'react';
 import { Toaster } from 'sonner';
 
 import { ThemeToggle } from '@/components/ThemeToggle';
-import { buttonClass, focusRing } from '@/components/styles';
+import { focusRing } from '@/components/styles';
 import type { ChatAttachRequest } from '@/features/chat/attachRequest';
 import { ChatArea } from '@/features/chat/ChatArea';
 import { GenerateArea } from '@/features/generate/GenerateArea';
+import type { Mode } from '@/features/generate/mode';
+import { Gallery } from '@/features/gallery/Gallery';
 import { SettingsPanel } from '@/features/settings/SettingsPanel';
 import { useTheme } from '@/lib/theme';
 
-const TABS = ['Generate', 'Chat', 'Settings'] as const;
+/**
+ * The primary tabs ARE the app's navigation (no router). The order reads as the
+ * working pipeline: you make an image (Generate), you look at what you made
+ * (Gallery), you talk it further (Chat) — and Settings is the configuration
+ * surface, not a step in that flow, so it stays last (docs/17 row 30).
+ */
+const TABS = ['Generate', 'Gallery', 'Chat', 'Settings'] as const;
 type Tab = (typeof TABS)[number];
 
 /** The primary tabs are the app's whole navigation (no router). */
@@ -21,7 +29,7 @@ function TabBar({
     <nav
       role="tablist"
       aria-label="Sections"
-      className="seg-group order-3 w-full lg:order-none lg:w-auto"
+      className="seg-group order-3 w-full flex-wrap lg:order-none lg:w-auto"
     >
       {TABS.map((option) => (
         <button
@@ -45,24 +53,22 @@ function TabBar({
 
 /**
  * The app shell: ONE compact bar (identity, the primary tabs, the theme) and
- * the hero surface below it — the gallery, with the controls in a panel beside
- * or over it.
+ * the active tab's surface below it.
  *
  * In-app tabs, no router: the static host has no history fallback.
+ *
+ * THREE pieces of state live here because the tab is what decides which surface
+ * exists, and a cross-tab action has to set them before (or while) it switches:
+ * the one-shot `ChatAttachRequest` for "Chat with this image", and the refine
+ * form's mode + source for "Refine this" (docs/17 rows 18 and 30).
  */
 export function App({ initialTab = 'Generate' }: { initialTab?: Tab }): React.JSX.Element {
   const [tab, setTab] = useState<Tab>(initialTab);
   /**
-   * The controls panel on a NARROW viewport: closed to begin with, so the
-   * artwork owns the screen, and one visible button opens it. At `lg` and up
-   * the panel is a persistent rail and this flag does not affect visibility.
-   */
-  const [panelOpen, setPanelOpen] = useState(false);
-  /**
    * A one-shot "stage this gallery image in the chat composer" request
-   * (docs/17 row 18). It lives here because the tab does: the Gallery sits
-   * inside `GenerateArea` and the composer in `ChatArea`, and neither may own
-   * the other's state.
+   * (docs/17 row 18). It lives here because the tab does: the Gallery and the
+   * composer in `ChatArea` are separate surfaces, and neither may own the
+   * other's state.
    */
   const [attachRequest, setAttachRequest] = useState<ChatAttachRequest | null>(null);
   const attachNonce = useRef(0);
@@ -75,6 +81,16 @@ export function App({ initialTab = 'Generate' }: { initialTab?: Tab }): React.JS
   const onAttachConsumed = useCallback((nonce: number) => {
     setAttachRequest((current) => (current !== null && current.nonce === nonce ? null : current));
   }, []);
+  /**
+   * The refine form's mode and source (docs/17 row 30). They live here because
+   * the Gallery tab's "Refine this" must set BOTH and then select the Generate
+   * tab; keeping them inside `GenerateArea` would leave the cross-tab action
+   * with nowhere to write. Unlike the chat request this needs no nonce: the
+   * source is plain persistent form state, so setting it again (even to the
+   * same image) is a no-op rather than a duplicate action.
+   */
+  const [mode, setMode] = useState<Mode>('Create');
+  const [refineSourceId, setRefineSourceId] = useState<string | null>(null);
   const theme = useTheme();
   return (
     <div className="flex min-h-screen flex-col bg-canvas text-ink">
@@ -87,16 +103,6 @@ export function App({ initialTab = 'Generate' }: { initialTab?: Tab }): React.JS
         </div>
         <div className="order-2 ml-auto flex items-center gap-2">
           <ThemeToggle />
-          <button
-            type="button"
-            aria-expanded={panelOpen}
-            className={`${buttonClass('secondary', focusRing)} lg:hidden`}
-            onClick={() => {
-              setPanelOpen((open) => !open);
-            }}
-          >
-            {panelOpen ? 'Hide controls' : 'Controls'}
-          </button>
         </div>
         <TabBar
           tab={tab}
@@ -107,32 +113,23 @@ export function App({ initialTab = 'Generate' }: { initialTab?: Tab }): React.JS
       </header>
 
       {tab === 'Generate' ? (
-        <main
-          className={`flex w-full flex-1 flex-col gap-3 px-3 py-3 sm:px-4 lg:flex-row lg:items-start ${
-            panelOpen ? 'overflow-hidden lg:overflow-visible' : ''
-          }`}
-        >
-          {/*
-            The backdrop for the slide-in panel on a narrow viewport. It sits
-            BELOW the panel (lower z, and before it in the DOM) and closes the
-            panel when tapped; it is inert from the keyboard (tabIndex -1)
-            because the panel's "Close" button is the accessible way out.
-          */}
-          {panelOpen && (
-            <button
-              type="button"
-              aria-label="Close controls"
-              tabIndex={-1}
-              className="panel-backdrop lg:hidden"
-              onClick={() => {
-                setPanelOpen(false);
-              }}
-            />
-          )}
+        <main className="w-full flex-1 px-3 py-3 sm:px-4">
           <GenerateArea
-            open={panelOpen}
-            onClose={() => {
-              setPanelOpen(false);
+            mode={mode}
+            onModeChange={setMode}
+            sourceId={refineSourceId}
+            onSourceChange={setRefineSourceId}
+          />
+        </main>
+      ) : tab === 'Gallery' ? (
+        <main className="w-full flex-1 px-3 py-3 sm:px-4">
+          <Gallery
+            onRefine={(imageId) => {
+              // Land on the Generate tab with THAT image as the refine source,
+              // in Refine mode (docs/17 row 30).
+              setRefineSourceId(imageId);
+              setMode('Refine');
+              setTab('Generate');
             }}
             onChat={(imageId) => {
               // A new nonce per click: re-picking the SAME image is a new request.

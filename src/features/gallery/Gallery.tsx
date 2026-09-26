@@ -175,15 +175,20 @@ function Lightbox(props: {
 }
 
 /**
- * The gallery: the app's primary surface. Edge-to-edge tiles on a tight
- * gutter, more columns as the window grows, the artwork filling each tile.
+ * The gallery: its own top-level tab, and the app's primary surface.
+ * Edge-to-edge tiles on a tight gutter, more columns as the window grows, the
+ * artwork filling each tile.
+ *
+ * There is NO refresh-counter prop: the Gallery is mounted only while its tab
+ * is active (docs/17 row 30), so entering the tab re-runs the list read and a
+ * freshly generated image is there. `localVersion` still exists for the one
+ * change that happens WHILE this component is mounted — a deletion in the
+ * lightbox.
  */
 export function Gallery({
-  version,
   onRefine,
   onChat,
 }: Readonly<{
-  version: number;
   /** Present → the lightbox offers "Refine this" for the open image. */
   onRefine?: ((imageId: string) => void) | undefined;
   /** Present → the lightbox offers "Chat with this image" for the open image. */
@@ -197,7 +202,7 @@ export function Gallery({
     listImages().then(setImages, (error: unknown) => {
       setLoadError(toError(error));
     });
-  }, [version, localVersion]);
+  }, [localVersion]);
   if (loadError !== null) throw loadError;
   if (images === null) return <p className="text-body text-muted">Loading gallery…</p>;
   const open = images.find((i) => i.id === openId);

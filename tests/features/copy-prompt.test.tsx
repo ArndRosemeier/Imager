@@ -24,7 +24,7 @@ const SEED_ID = 'copy-seed-1';
 function renderGallery(): void {
   render(
     <>
-      <Gallery version={0} />
+      <Gallery />
       <Toaster />
     </>,
   );

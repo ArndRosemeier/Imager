@@ -329,28 +329,19 @@
 }
 
 /*
- * The two structures the app shell repeats: the slide-in PANEL (fixed over the
- * artwork on a narrow viewport, a static rail from `lg` up — never over it) and
- * its BACKDROP. They live here, next to the tokens they use, so neither the
- * generate nor the chat panel can drift into a different sheet, and so the
- * open/closed class stays a STATIC string (a computed `lg:${...}` is invisible
- * to every scanner).
+ * The slide-in structure the app shell repeats: the chat conversation list
+ * (`.conversation-list`, a rail from `lg` up and a sheet below it) and its
+ * BACKDROP. They live here, next to the tokens they use, so the list can never
+ * drift into a different sheet, and so the open/closed class stays a STATIC
+ * string (a computed `lg:${...}` is invisible to every scanner).
+ *
+ * The generate panel's own `.panel-sheet` was removed with its side-by-side
+ * SPLIT: the gallery is its own tab now, so the Generate tab is the form alone
+ * and there is no artwork for a sheet to slide over (docs/17 row 30).
  */
-@utility panel-sheet {
-  position: fixed;
-  z-index: 40;
-  top: 4.25rem;
-  right: 0.75rem;
-  bottom: 0.75rem;
-  left: auto;
-  display: flex;
-  flex-direction: column;
-  overflow-y: auto;
-  padding: 0.75rem;
-}
 /* The chat conversation list: the rail from `lg` up, a slide-in sheet below it.
- * It lives here (like `panel-sheet`) so its width is set by ONE track and the
- * panel can never spill into the conversation it sits beside. */
+ * It lives here so its width is set by ONE track and the panel can never spill
+ * into the conversation it sits beside. */
 @utility conversation-list {
   display: flex;
   flex-direction: column;
@@ -398,20 +389,6 @@
 @media (max-width: 1023.98px) {
   [data-panel='closed'] {
     display: none !important;
-  }
-}
-@media (min-width: 1024px) {
-  .panel-sheet {
-    position: static;
-    z-index: auto;
-    top: auto;
-    right: auto;
-    bottom: auto;
-    left: auto;
-    display: flex !important;
-    max-height: calc(100vh - 5rem);
-    width: 22rem;
-    flex-shrink: 0;
   }
 }
 

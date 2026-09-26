@@ -97,8 +97,9 @@ async function seedSource(overrides: Partial<StoredImage> = {}): Promise<void> {
   });
 }
 
-/** Gallery thumb → lightbox → "Refine this": the source-picking path. */
+/** Gallery tab → thumb → lightbox → "Refine this": the cross-tab source path. */
 async function pickSourceFromGallery(user: ReturnType<typeof userEvent.setup>): Promise<void> {
+  await user.click(screen.getByRole('tab', { name: 'Gallery' }));
   await user.click(await screen.findByRole('button', { name: /Open image: seeded source/ }));
   await user.click(within(screen.getByRole('dialog', { name: 'Image details' })).getByRole('button', { name: 'Refine this' }));
 }
@@ -271,7 +272,10 @@ it('an upload is stored as source "uploaded" and appears in the gallery', async 
     width: 300,
     height: 200,
   });
-  const gallery = screen.getByRole('region', { name: 'Gallery' });
+  // The upload is an ordinary gallery row; the gallery is its own tab, so it
+  // shows on the next visit with no refresh plumbing (docs/17 row 30).
+  await user.click(screen.getByRole('tab', { name: 'Gallery' }));
+  const gallery = await screen.findByRole('region', { name: 'Gallery' });
   expect(await within(gallery).findByRole('button', { name: /Open image: holiday\.jpg/ })).toBeInTheDocument();
 });
 

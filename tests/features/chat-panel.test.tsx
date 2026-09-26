@@ -185,9 +185,10 @@ it('a turn sends modalities + the refineChatModel, stores the image in the galle
   expect(screen.getByText(/Cost: \$0\.2000/)).toBeInTheDocument();
   expect(screen.getByText(/total \$0\.2000/)).toBeInTheDocument();
 
-  // The generated image is a normal gallery image with its provenance.
-  await user.click(screen.getByRole('tab', { name: 'Generate' }));
-  const gallery = screen.getByRole('region', { name: 'Gallery' });
+  // The generated image is a normal gallery image with its provenance, on the
+  // Gallery tab (the Generate tab is the form only, docs/17 row 30).
+  await user.click(screen.getByRole('tab', { name: 'Gallery' }));
+  const gallery = await screen.findByRole('region', { name: 'Gallery' });
   expect(
     await within(gallery).findByRole('button', { name: /Open image: make the sky darker/ }),
   ).toBeInTheDocument();

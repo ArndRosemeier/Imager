@@ -74,7 +74,7 @@ afterEach(() => {
 async function openLightbox(user: ReturnType<typeof userEvent.setup>): Promise<HTMLElement> {
   render(
     <>
-      <Gallery version={0} />
+      <Gallery />
       <Toaster />
     </>,
   );

@@ -68,8 +68,9 @@ async function seedImage(): Promise<void> {
   });
 }
 
-/** Thumbnail → lightbox → "Chat with this image". */
+/** Gallery tab → thumbnail → lightbox → "Chat with this image". */
 async function openChatFromGallery(user: ReturnType<typeof userEvent.setup>): Promise<void> {
+  await user.click(screen.getByRole('tab', { name: 'Gallery' }));
   await user.click(await screen.findByRole('button', { name: `Open image: ${SEED_PROMPT}` }));
   await user.click(
     within(screen.getByRole('dialog', { name: 'Image details' })).getByRole('button', {
@@ -95,7 +96,7 @@ it('the lightbox offers the chat button only when onChat is provided', async () 
   await seedImage();
   const user = userEvent.setup();
   const onChat = vi.fn();
-  const first = render(<Gallery version={0} onChat={onChat} />);
+  const first = render(<Gallery onChat={onChat} />);
   await user.click(await screen.findByRole('button', { name: `Open image: ${SEED_PROMPT}` }));
   const dialog = screen.getByRole('dialog', { name: 'Image details' });
   // The layout claim, as far as jsdom can honestly see it: the classes that
@@ -114,7 +115,7 @@ it('the lightbox offers the chat button only when onChat is provided', async () 
   first.unmount();
 
   // Never an invented affordance: without the handler the button is absent.
-  render(<Gallery version={0} />);
+  render(<Gallery />);
   await user.click(await screen.findByRole('button', { name: `Open image: ${SEED_PROMPT}` }));
   const bare = screen.getByRole('dialog', { name: 'Image details' });
   expect(within(bare).queryByRole('button', { name: 'Chat with this image' })).toBeNull();

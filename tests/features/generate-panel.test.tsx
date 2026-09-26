@@ -86,7 +86,11 @@ it('success stores N images + 1 run and shows them in the gallery with the filte
   expect(await screen.findByText(/1 of 3 candidates were filtered/)).toBeInTheDocument();
   expect(screen.getByText(/\$0\.1200/)).toBeInTheDocument();
   expect(JSON.parse(posts[0] ?? '')).toMatchObject({ n: 3, model: 'openai/gpt-image-1' });
-  const gallery = screen.getByRole('region', { name: 'Gallery' });
+  // The results are on the GALLERY tab now (the Generate tab is the form only,
+  // docs/17 row 30): entering it mounts the grid, which reads the library — so
+  // the fresh images are there with no manual reload.
+  await user.click(screen.getByRole('tab', { name: 'Gallery' }));
+  const gallery = await screen.findByRole('region', { name: 'Gallery' });
   expect(
     await within(gallery).findAllByRole('button', { name: /Open image: a red fox/ }),
   ).toHaveLength(2);

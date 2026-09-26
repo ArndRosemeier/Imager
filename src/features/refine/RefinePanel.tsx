@@ -41,11 +41,9 @@ function SourcePreview({ image }: Readonly<{ image: StoredImage }>): React.JSX.E
 export function RefinePanel({
   sourceId,
   onSourceChange,
-  onFinished,
 }: Readonly<{
   sourceId: string | null;
   onSourceChange: (id: string | null) => void;
-  onFinished: () => void;
 }>): React.JSX.Element {
   const { state, error } = useImagePanel();
   const [source, setSource] = useState<StoredImage | null>(null);
@@ -101,9 +99,6 @@ export function RefinePanel({
         fileName: file.name,
       });
       onSourceChange(image.id);
-      // The upload is a gallery row now: refresh the gallery so it is visible
-      // and reusable there immediately.
-      onFinished();
     } catch (uploadFailure: unknown) {
       setUploadError(errorMessage(uploadFailure));
       toastError('Could not use that file as a refinement source', uploadFailure);
@@ -149,7 +144,6 @@ export function RefinePanel({
       .finally(() => {
         setBusy(false);
         abortRef.current = null;
-        onFinished();
       });
   };
 

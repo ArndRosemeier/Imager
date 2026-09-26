@@ -12,9 +12,7 @@ import { toastError } from '@/lib/toast';
  * The text-to-image form. Layout only — the request path is
  * `runGeneration` → the ONE `src/llm/images.ts` seam, shared with refinement.
  */
-export function GeneratePanel({
-  onFinished,
-}: Readonly<{ onFinished: () => void }>): React.JSX.Element {
+export function GeneratePanel(): React.JSX.Element {
   const { state, error } = useImagePanel();
   const [prompt, setPrompt] = useState('');
   const [count, setCount] = useState(1);
@@ -69,7 +67,6 @@ export function GeneratePanel({
       .finally(() => {
         setBusy(false);
         abortRef.current = null;
-        onFinished();
       });
   };
 
