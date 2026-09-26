@@ -45,6 +45,7 @@ None.
 None. (Auto-routers stay — ledger row 7.)
 
 ## Known debt / notes
+- SAVE PICKER (ledger row 36): both ZIP actions already open the native picker where supported (Chrome/Edge). Safari/iOS + Firefox have NO picker (caniuse) and use the anchor download — the owner's chosen fallback. On iPadOS the anchor path produces iOS's own app-chooser sheet; tell him to tap "Save to Files". Picker requires the click's transient activation (a gesture-less save fails loudly, correctly).
 - Tags (row 34): lowercase normalization collapses `Orc`/`orc`/`ORC`; `Orcs` is deliberately NOT merged (renaming/merging is out) — suggestions are the guard. Tags edit in the lightbox only. Filter selection is not persisted; the SIZE preference is (localStorage `imager.gallerySize`).
 - At Small density the tile captions truncate hard; inherent to small tiles, noted not fixed.
 - DEXIE TRAP (row 32/33): `db.images.update(id,{favorite})` deep-clones the record and corrupts `Uint8Array` bytes (`[object Object]`, read throws). ONE-field updates MUST read → `parseImage` → `put` in a transaction. Guard: `tests/db/cos-favourite-toggle.test.ts`.
