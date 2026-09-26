@@ -8,7 +8,8 @@ import { useEffect, useState } from 'react';
 
 import { buttonClass, focusRing, type ButtonVariant } from '@/components/styles';
 import { copyText } from '@/lib/clipboard';
-import { toastError } from '@/lib/toast';
+import { saveFile, type SaveRequest } from '@/lib/saveFile';
+import { toastError, toastSuccess } from '@/lib/toast';
 
 /** How long the button's own label confirms a successful copy. */
 const COPIED_FEEDBACK_MS = 2000;
@@ -85,6 +86,70 @@ export function CopyButton({
       }}
     >
       {copied ? 'Copied' : 'Copy'}
+    </button>
+  );
+}
+
+/**
+ * THE app's save control: one click puts bytes on the owner's disk through the
+ * `saveFile` seam (the file picker where the browser has one, an anchor
+ * download otherwise).
+ *
+ * FEEDBACK (the decided choice): a SAVE is confirmed through the app's one
+ * notice surface — a download is otherwise easy to miss, and the anchor branch
+ * has no dialog to close. A CANCEL is deliberately silent: the seam reports it
+ * as the `cancelled` outcome and this control does nothing with it, because
+ * "the owner changed his mind" is not an error (rule 1: never claim a save that
+ * did not happen, and never invent a failure that did not happen either). A
+ * real failure keeps its own reason and goes to `toastError` (rule 2).
+ *
+ * `buildRequest` is called INSIDE the click handler, not during render: the
+ * request must be built from the state of the world at click time (a fresh
+ * timestamp, fresh rows), and the picker it opens needs that click's transient
+ * activation.
+ */
+export function SaveButton({
+  label,
+  buildRequest,
+  variant = 'secondary',
+  className = '',
+  disabled = false,
+}: Readonly<{
+  /** The control's label while it is idle. */
+  label: string;
+  /** Builds the save request at click time. */
+  buildRequest: () => SaveRequest;
+  /** The button role, so this control sits in the design system like any other. */
+  variant?: ButtonVariant;
+  /** Extra role-appropriate classes, never a raw colour. */
+  className?: string;
+  /** Refuse the action with a reason stated by the caller's own copy. */
+  disabled?: boolean;
+}>): React.JSX.Element {
+  const [saving, setSaving] = useState(false);
+  return (
+    <button
+      type="button"
+      disabled={disabled || saving}
+      className={buttonClass(variant, className)}
+      onClick={() => {
+        const request = buildRequest();
+        setSaving(true);
+        saveFile(request)
+          .then(
+            (outcome) => {
+              if (outcome.status === 'saved') toastSuccess(`Saved ${request.fileName}`);
+            },
+            (error: unknown) => {
+              toastError(`Could not save ${request.fileName}`, error);
+            },
+          )
+          .finally(() => {
+            setSaving(false);
+          });
+      }}
+    >
+      {saving ? 'Saving…' : label}
     </button>
   );
 }

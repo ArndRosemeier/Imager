@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 
-import { EmptyState, CopyButton } from '@/components/ui';
+import { EmptyState, CopyButton, SaveButton } from '@/components/ui';
 import { buttonClass } from '@/components/styles';
 import { deleteImage, getRun, listImages } from '@/db/imageRepo';
-import { extensionFor, type Run, type StoredImage } from '@/domain/image';
+import { type Run, type StoredImage } from '@/domain/image';
+import { imageFileName } from '@/features/export/exportLibrary';
 import { useImageUrl } from '@/features/gallery/useImageUrl';
 import { toError } from '@/lib/errors';
 import { toastError } from '@/lib/toast';
@@ -129,13 +130,23 @@ function Lightbox(props: {
         </div>
         <div className="mt-3 flex flex-wrap gap-2">
           {url !== null && (
-            <a
-              className={buttonClass('primary')}
-              href={url}
-              download={`imager-${image.id}.${extensionFor(image.mimeType)}`}
-            >
-              Download
-            </a>
+            /*
+              One save control, through the ONE save seam (docs/17 row 25): a
+              real "Save as…" with a suggested name derived from the prompt
+              where the browser has `showSaveFilePicker`, the anchor download
+              otherwise. The suggested name is sanitized in the export seam —
+              a prompt can contain slashes, newlines, emoji or 200 characters,
+              and none of that may reach a file name.
+            */
+            <SaveButton
+              label="Save as…"
+              variant="invert"
+              buildRequest={() => ({
+                fileName: imageFileName(image),
+                mimeType: image.mimeType,
+                buildBytes: () => image.bytes,
+              })}
+            />
           )}
           {props.onRefine !== undefined && (
             <button type="button" className={buttonClass('invert')} onClick={props.onRefine}>

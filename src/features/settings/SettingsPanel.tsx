@@ -5,6 +5,7 @@ import { EmptyState } from '@/components/ui';
 import { buttonClass } from '@/components/styles';
 import { getSettings, updateSettings } from '@/db/settingsRepo';
 import type { Settings } from '@/domain/settings';
+import { ExportPanel } from '@/features/export/ExportPanel';
 import { testApiKey } from '@/llm/key';
 import {
   canGenerateImages,
@@ -117,6 +118,13 @@ export function SettingsPanel(): React.JSX.Element {
           )}
         </div>
       </section>
+
+      {/*
+        Getting the work OUT (docs/17 row 25): the two export modes live in the
+        Settings tab, where the app's own state is managed, and both go through
+        the ONE save seam.
+      */}
+      <ExportPanel />
 
       {modelsError !== null && (
         <div

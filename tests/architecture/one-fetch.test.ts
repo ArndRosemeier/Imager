@@ -20,7 +20,10 @@ it('no model id literal appears in src/', () => {
     [...readFileSync(f, 'utf8').matchAll(/['"`]([a-z0-9][\w.-]*\/[\w.:-]+)['"`]/g)]
       .map((m) => `${f}: ${m[1] ?? ''}`)
       // Non-model literals of the same shape, named one by one.
-      .filter((s) => !/: (application\/json|vite\/client|react-dom\/client)$/.test(s)),
+      .filter(
+        (s) =>
+          !/: (application\/json|application\/zip|vite\/client|react-dom\/client)$/.test(s),
+      ),
   );
   expect(offenders).toEqual([]);
 });

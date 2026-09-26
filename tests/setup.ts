@@ -1,11 +1,28 @@
 import '@testing-library/jest-dom/vitest';
 import 'fake-indexeddb/auto';
 
+import { webcrypto } from 'node:crypto';
+
 import { cleanup } from '@testing-library/react';
 import { toast } from 'sonner';
 import { afterEach, beforeEach } from 'vitest';
 
 import { DEFAULT_THEME } from '@/lib/theme';
+
+/*
+ * jsdom implements no `SubtleCrypto` (MEASURED: jsdom 30's `Crypto` carries
+ * `getRandomValues`/`randomUUID` only), so the export seam's per-image SHA-256
+ * would throw in every test. Node's WebCrypto is installed under the SAME name
+ * with the SAME method signature and the SAME async-ness — an honest stand-in
+ * for the algorithm, not a fake digest (ledger rows 14/15: a double that
+ * invents a different shape certifies code the real object refuses). The real
+ * browser computes the real hash, and the ledger row pins the archive's
+ * sha256 against Node's independent digest.
+ */
+Object.defineProperty(globalThis.crypto, 'subtle', {
+  configurable: true,
+  value: webcrypto.subtle,
+});
 
 afterEach(() => {
   cleanup();

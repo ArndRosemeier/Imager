@@ -105,10 +105,9 @@ it('success stores N images + 1 run and shows them in the gallery with the filte
   if (first === undefined) throw new Error('no thumbnail');
   await user.click(first);
   const dialog = screen.getByRole('dialog', { name: 'Image details' });
-  expect(within(dialog).getByRole('link', { name: 'Download' })).toHaveAttribute(
-    'download',
-    expect.stringMatching(/\.png$/),
-  );
+  // The lightbox's ONE save control is the shared SaveButton (docs/17 row 25):
+  // a real "Save as…" through the save seam, not a hand-rolled anchor.
+  expect(within(dialog).getByRole('button', { name: /Save as/ })).toBeInTheDocument();
   await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
   await waitFor(() => {
     expect(within(gallery).getAllByRole('button', { name: /Open image/ })).toHaveLength(1);
