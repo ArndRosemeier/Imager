@@ -44,6 +44,12 @@ None.
 ## Open owner fork
 None. (Auto-routers stay — ledger row 7.)
 
+## Host hygiene — CORRECTED (ledger row 37)
+- **A browser check is not finished until the chrome count is READ.** The dispatcher's sweeps used `pgrep -f "google-chrom[e]"`, which matches NOTHING (the real argv is `/opt/google/chrome/chrome … --user-data-dir=…`), so 33 orphaned headless instances went unreported for a day. The check that works:
+  `ps -eo pid,comm= | awk '$2=="chrome"{print $1}'` then filter on the `--user-data-dir` path under this repo, so the peer platform's browser is never touched.
+- Kill from a PID file captured in a SEPARATE call (`xargs -r kill < pids.txt`); a `pgrep -f` one-liner matches its own shell (rows 6/24/37).
+- `chrome.kill()` inside a script's happy path is NOT evidence of cleanup.
+
 ## Known debt / notes
 - SAVE PICKER (ledger row 36): both ZIP actions already open the native picker where supported (Chrome/Edge). Safari/iOS + Firefox have NO picker (caniuse) and use the anchor download — the owner's chosen fallback. On iPadOS the anchor path produces iOS's own app-chooser sheet; tell him to tap "Save to Files". Picker requires the click's transient activation (a gesture-less save fails loudly, correctly).
 - Tags (row 34): lowercase normalization collapses `Orc`/`orc`/`ORC`; `Orcs` is deliberately NOT merged (renaming/merging is out) — suggestions are the guard. Tags edit in the lightbox only. Filter selection is not persisted; the SIZE preference is (localStorage `imager.gallerySize`).
