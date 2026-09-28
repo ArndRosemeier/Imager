@@ -48,7 +48,7 @@
 import type { StoredImage } from '@/domain/image';
 import { uploadStoredImages, type UploadProgress } from '@/features/store/storeTransfer';
 import { sha256Hex } from '@/lib/sha256';
-import { readDirectory, visibleFolders } from '@/server/store-folders';
+import { myFolderIn, readDirectory, visibleFolders } from '@/server/store-folders';
 import { connectStored, type StoreConnection } from '@/server/store-session';
 
 /**
@@ -68,7 +68,7 @@ import { connectStored, type StoreConnection } from '@/server/store-session';
 export type StorePushAvailability =
   | { status: 'unconfigured' }
   | { status: 'unreachable'; error: unknown }
-  | { status: 'no-folder'; myFolder: string }
+  | { status: 'no-folder'; defaultFolderSlug: string }
   | { status: 'already'; objectName: string; folderLabel: string; visible: boolean }
   | { status: 'cannot-tell'; reason: string }
   | {
@@ -141,7 +141,9 @@ export async function inspectStorePush(image: StoredImage): Promise<StorePushAva
    * privacy rule is applied).
    */
   const visibleSlugs = new Set(
-    visibleFolders(directory.folders, connection.myFolder).map((folder) => folder.record.slug),
+    visibleFolders(directory.folders, connection.who).map(
+      ({ listing }) => listing.record.slug,
+    ),
   );
   for (const folder of directory.folders) {
     const hit = folder.index?.images.find((entry) => entry.sourceSha256 === identity);
@@ -156,8 +158,15 @@ export async function inspectStorePush(image: StoredImage): Promise<StorePushAva
     }
   }
 
-  const mine = directory.folders.find((folder) => folder.record.slug === connection.myFolder);
-  if (mine === undefined) return { status: 'no-folder', myFolder: connection.myFolder };
+  /*
+   * "MINE" IS THE IDENTITY'S FOLDER, NOT A NAME (docs/17 row 50): the record
+   * whose `owner` is this key's `/whoami` id. The proposed name is only the
+   * default destination when no such record exists.
+   */
+  const mine = myFolderIn(directory.folders, connection.who);
+  if (mine === undefined) {
+    return { status: 'no-folder', defaultFolderSlug: connection.defaultFolderSlug };
+  }
 
   /*
    * An index-less folder is the one honest blind spot. It is NOT rebuilt here:

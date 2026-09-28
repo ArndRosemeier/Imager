@@ -1,7 +1,9 @@
 /**
  * THE ServerStore session seam (docs/17 row 42): the ONE place the app decides
- * whether the store is usable, which identity it holds, and which folder is
- * "mine".
+ * whether the store is usable, which identity it holds, and which folder NAME
+ * it proposes for that identity. Whether a folder IS this identity's is decided
+ * from the record's `owner` in `store-folders.ts` (`folderOwnership`, docs/17
+ * row 50) — never here, and never from a slug.
  *
  * "ALL NON-STORE FUNCTIONS WORK REGARDLESS" (owner's decision): with no key,
  * with an unreachable service, or with a key the service refuses, this module
@@ -24,8 +26,16 @@ import { folderSlugForKey } from '@/server/store-folders';
 export interface StoreConnection {
   target: StoreTarget;
   who: WhoAmI;
-  /** The slug this key's folder is under (stored choice first, else the label). */
-  myFolder: string;
+  /**
+   * The folder NAME the app proposes for this key (stored choice first, else a
+   * slug derived from the label). It is a DEFAULT, NOT an identity: the folder
+   * this key actually OWNS is the record whose `owner` equals `who.id`, found
+   * through `myFolderIn`/`folderOwnership` (docs/17 row 50). It is named
+   * `defaultFolderSlug` rather than `myFolder` precisely so no reader mistakes
+   * it for the ownership answer again — the owner's own report was that a slug
+   * comparison told him his own folder belonged to someone else.
+   */
+  defaultFolderSlug: string;
 }
 
 /**
@@ -64,8 +74,10 @@ export function targetFrom(config: StoreConfig): StoreTarget {
 
 /**
  * Try the stored key: `GET /whoami` is the ONE proof that a credential works
- * and the ONE source of the identity ("your folder" is derived from its label,
- * or from a first-run choice already stored).
+ * and the ONE source of the identity (the folder NAME this app proposes for the
+ * key comes from its label, or from a first-run choice already stored — and the
+ * folder the key actually OWNS is decided from this id, never from that name;
+ * docs/17 row 50).
  *
  * A `401`/`403` and a network failure are both reported as `failed` — never
  * swallowed, never retried in a loop.
@@ -76,13 +88,13 @@ export async function connectStored(): Promise<StoreState> {
   if (config.key === '') return { status: 'unconfigured' };
   try {
     const who = await whoami(targetFrom(config));
-    const myFolder = folderSlugForKey(who, config.folder);
+    const defaultFolderSlug = folderSlugForKey(who, config.folder);
     if (config.folder === '') {
-      // First run for this key: the label becomes the folder choice, STORED, so
-      // the next visit does not silently re-derive a different one.
-      await updateSettings({ serverStoreFolder: myFolder });
+      // First run for this key: the label becomes the proposed folder name,
+      // STORED, so the next visit does not silently re-derive a different one.
+      await updateSettings({ serverStoreFolder: defaultFolderSlug });
     }
-    return { status: 'ready', connection: { target: targetFrom(config), who, myFolder } };
+    return { status: 'ready', connection: { target: targetFrom(config), who, defaultFolderSlug } };
   } catch (error: unknown) {
     return { status: 'failed', error };
   }

@@ -69,7 +69,7 @@ function target(): StoreTarget {
 }
 
 function connection(): StoreConnection {
-  return { target: target(), who: WHO, myFolder: 'alice' };
+  return { target: target(), who: WHO, defaultFolderSlug: 'alice' };
 }
 
 /** The dimensions the fake decoder reads out of the source bytes, so "the
@@ -266,6 +266,25 @@ it('a key the store REFUSES disables the button with that reason, and the rest o
   expect(store.requests.some((request) => request.target === '/whoami')).toBe(true);
   expect(store.requests.filter((request) => request.method === 'PUT')).toEqual([]);
   expect(screen.getByRole('button', { name: 'Delete' })).toBeEnabled();
+});
+
+it('a key with NO folder record of its own is disabled with the proposed name, and writes nothing', async () => {
+  await seedSettings('ssk_test_KEY');
+  await db.images.bulkPut([localRow({ id: 'a', prompt: 'a wizard tower', tags: [], width: 900, height: 600, createdAt: 1 })]);
+  forgetSetup();
+
+  renderViewer(storePushApi);
+  await openLightbox('a wizard tower');
+
+  const button = await screen.findByRole('button', { name: 'Add to store' });
+  expect(button).toBeDisabled();
+  // The proposed NAME is named as a proposal (ownership is the key id, docs/17
+  // row 50), never presented as a fact about a folder that exists.
+  expect(
+    await screen.findByText(/No folder record in the store owns this key yet/),
+  ).toBeInTheDocument();
+  expect(screen.getByText(/The name the app proposes for it is "alice"/)).toBeInTheDocument();
+  expect(store.requests.filter((request) => request.method === 'PUT')).toEqual([]);
 });
 
 it('an image ALREADY in the store is recognised from its source identity — although the store re-encoded it to WebP', async () => {

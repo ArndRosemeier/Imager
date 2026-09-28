@@ -506,7 +506,8 @@ export async function readImageObject(
   return { header: imageHeaderSchema.parse(header), bytes };
 }
 
-/** The slug that is "mine" for one key: stored choice first, else the label. */
+/** The slug the app PROPOSES for one key's folder: stored choice first, else
+ * the label. A proposal, never an identity — see `folderOwnership`. */
 export function folderSlugForKey(who: WhoAmI, stored: string): string {
   if (stored !== '') {
     // A stored choice is used as-is when it is legal; an ILLEGAL one is an
@@ -517,18 +518,63 @@ export function folderSlugForKey(who: WhoAmI, stored: string): string {
 }
 
 /**
- * The folders the app SHOWS for one identity.
+ * WHO a folder record says it belongs to — THE ownership decision (docs/17 row
+ * 50), made in exactly one place.
+ *
+ *  * `mine`    — the record's `owner` IS this key's `/whoami` id.
+ *  * `other`   — the record names a DIFFERENT key id.
+ *  * `unknown` — the record names NO owner. A record written by another client
+ *                (or an older one) can carry no `owner` at all, and the honest
+ *                answer is that ownership cannot be told — never "yours"
+ *                (which would announce a stranger's folder as the owner's own)
+ *                and never "another key's" (which would accuse the owner of
+ *                pushing into someone else's folder, the exact
+ *                misleading-privacy message of docs/17 row 50).
+ *
+ * WHY NOT THE SLUG: the slug is a NAME. `folderSlugForKey` derives the app's
+ * proposed name from the key's LABEL, which the operator can rename in
+ * ServerStore's console, and a folder's slug is whatever its creator typed —
+ * two unrelated strings that merely happened to match made a folder read as
+ * "mine" (and, in the owner's own report, made his OWN folder read as another
+ * key's). The record carries the key ID precisely so ownership never has to be
+ * guessed from a name.
+ */
+export type FolderOwnership = 'mine' | 'other' | 'unknown';
+
+export function folderOwnership(record: FolderRecord, who: WhoAmI): FolderOwnership {
+  const owner = record.owner.trim();
+  if (owner === '') return 'unknown';
+  return owner === who.id ? 'mine' : 'other';
+}
+
+/** One visible folder with its ownership already decided in the same pass. */
+export interface VisibleFolder {
+  listing: FolderListing;
+  ownership: FolderOwnership;
+}
+
+/**
+ * The folders the app SHOWS for one identity, each carrying its ownership.
  *
  * Honest semantics (docs/17 row 42): your own folder is always visible to you,
  * whoever wrote it; every other folder is shown unless its owner flagged it
- * private. That flag is a courtesy between users of this app — the server does
- * not enforce it and cannot.
+ * private — that flag is a courtesy between users of this app, the server does
+ * not enforce it and cannot. A folder whose owner is UNRECORDED is not mine,
+ * so it is treated like anyone else's: visible unless it is flagged private.
  */
 export function visibleFolders(
   folders: readonly FolderListing[],
-  mySlug: string,
-): FolderListing[] {
-  return folders.filter(
-    (folder) => folder.record.slug === mySlug || !folder.record.private,
-  );
+  who: WhoAmI,
+): VisibleFolder[] {
+  return folders
+    .map((listing) => ({ listing, ownership: folderOwnership(listing.record, who) }))
+    .filter(({ listing, ownership }) => ownership === 'mine' || !listing.record.private);
+}
+
+/** THE one "which folder does this identity own" lookup, or `undefined`. */
+export function myFolderIn(
+  folders: readonly FolderListing[],
+  who: WhoAmI,
+): FolderListing | undefined {
+  return folders.find((folder) => folderOwnership(folder.record, who) === 'mine');
 }

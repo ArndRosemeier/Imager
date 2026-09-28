@@ -175,7 +175,8 @@ function ConnectedStore({
   }, [syncNonce]);
 
   const view = folderViews(directory, connection);
-  const openFolder = openedFolder(view, connection);
+  const openFolder = openedFolder(view);
+  const myFolder = view.find((folder) => folder.ownership === 'mine');
 
   /*
    * THE LOUD REBUILD — ONCE PER MOUNTED FOLDER. An index that is absent or
@@ -235,8 +236,19 @@ function ConnectedStore({
             {connection.who.expiresAt === null ? '' : ` · expires ${connection.who.expiresAt}`}
           </p>
           <p className="text-caption text-muted">
-            Your folder: <span className="font-mono">{connection.myFolder}</span> in store{' '}
-            <span className="font-mono">{connection.target.store}</span> at{' '}
+            Your folder:{' '}
+            {myFolder === undefined ? (
+              <>
+                <span className="font-mono">{connection.defaultFolderSlug}</span> is the name this
+                app proposes for this key — no folder record in the store owns it yet
+              </>
+            ) : (
+              <>
+                <span className="font-mono">{myFolder.slug}</span> (the folder record whose owner is
+                key {connection.who.id})
+              </>
+            )}{' '}
+            in store <span className="font-mono">{connection.target.store}</span> at{' '}
             <span className="font-mono">{connection.target.baseUrl}</span>
           </p>
           {cacheLine !== null && <p className="text-caption text-muted">{cacheLine}</p>}
@@ -330,6 +342,7 @@ function ConnectedStore({
           directory={directory}
           view={view}
           indexMissing={openFolder?.missingIndex ?? false}
+          indexImageCount={openFolder?.indexImageCount ?? 0}
           rebuilding={rebuilding}
           onRebuildIndex={
             openFolder === undefined
@@ -371,13 +384,14 @@ function ConnectedStore({
   );
 }
 
-/** The folder the dialog opens on: yours when it exists, else the first public one. */
-function openedFolder(
-  view: readonly StoreFolderView[],
-  connection: StoreConnection,
-): StoreFolderView | undefined {
+/**
+ * The folder the dialog opens on: the one this identity OWNS when it exists,
+ * else the first public one. Ownership comes from the record's `owner` (decided
+ * once in `folderOwnership`), never from a slug comparison.
+ */
+function openedFolder(view: readonly StoreFolderView[]): StoreFolderView | undefined {
   return (
-    view.find((folder) => folder.slug === connection.myFolder) ??
+    view.find((folder) => folder.ownership === 'mine') ??
     view.find((folder) => !folder.private) ??
     view[0]
   );
@@ -385,28 +399,29 @@ function openedFolder(
 
 /**
  * The folders the dialog SHOWS: `visibleFolders` is the one place the
- * honour-based privacy rule is applied (yours always, everyone else's unless
- * flagged private). A folder that is not visible to this key is simply not in
- * the view — the dialog cannot forget to filter.
+ * honour-based privacy rule — AND the ownership decision it depends on — is
+ * applied (yours always, everyone else's unless flagged private). A folder that
+ * is not visible to this key is simply not in the view, so the dialog cannot
+ * forget to filter.
  */
 function folderViews(directory: Directory | null, connection: StoreConnection): StoreFolderView[] {
   if (directory === null) return [];
-  return visibleFolders(directory.folders, connection.myFolder).map((folder) => ({
-    slug: folder.record.slug,
-    displayName: folder.record.displayName,
-    owner: folder.record.owner,
-    private: folder.record.private,
-    mine: folder.record.slug === connection.myFolder,
-    missingIndex: folder.indexMissing,
-    indexImageCount: folder.imageNames.length,
-    images: (folder.index?.images ?? []).map((image) => ({
+  return visibleFolders(directory.folders, connection.who).map(({ listing, ownership }) => ({
+    slug: listing.record.slug,
+    displayName: listing.record.displayName,
+    owner: listing.record.owner,
+    private: listing.record.private,
+    ownership,
+    missingIndex: listing.indexMissing,
+    indexImageCount: listing.imageNames.length,
+    images: (listing.index?.images ?? []).map((image) => ({
       name: image.name,
       sha256: image.sha256,
       size: image.size,
       tags: image.tags,
       createdAt: image.createdAt,
       mimeType: image.mimeType,
-      folderSlug: folder.record.slug,
+      folderSlug: listing.record.slug,
     })),
   }));
 }

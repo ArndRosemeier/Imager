@@ -47,7 +47,7 @@ function pushBlockedReason(state: PushState): string | null {
     case 'unreachable':
       return `The store could not be reached or refused this key: ${errorMessage(state.error)}. Nothing was uploaded.`;
     case 'no-folder':
-      return `You have no folder in the store yet (this key maps to "${state.myFolder}"). Create it on the Store tab first.`;
+      return `No folder record in the store owns this key yet. The name the app proposes for it is "${state.defaultFolderSlug}" — create that folder on the Store tab first.`;
     case 'already':
       return state.visible
         ? `Already in the store as ${state.objectName}. Nothing was uploaded.`

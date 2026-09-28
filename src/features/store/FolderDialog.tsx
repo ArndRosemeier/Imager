@@ -20,7 +20,12 @@ import {
   type StoreQuality,
 } from '@/server/store-encode';
 import type { StoreConnection } from '@/server/store-session';
-import { createFolder, setFolderPrivate, type Directory } from '@/server/store-folders';
+import {
+  createFolder,
+  setFolderPrivate,
+  type Directory,
+  type FolderOwnership,
+} from '@/server/store-folders';
 import { slugFromLabel } from '@/server/store-files';
 
 /**
@@ -71,7 +76,13 @@ export interface StoreFolderView {
   displayName: string;
   owner: string;
   private: boolean;
-  mine: boolean;
+  /**
+   * Whose folder this is, decided by the record's `owner` — the key ID — and
+   * never by a slug (docs/17 row 50). Three-valued on purpose: `unknown` is a
+   * folder whose record names no owner, and the dialog must say so rather than
+   * pick a side.
+   */
+  ownership: FolderOwnership;
   /** True when the folder's index was absent or unreadable: rebuild, loudly. */
   missingIndex: boolean;
   /** How many image objects the LISTING reports for this folder (an index-less
@@ -87,11 +98,28 @@ function imageKey(image: StoreImageRef): string {
   return image.name;
 }
 
+/**
+ * How one folder's ownership reads in the destination line. THREE-VALUED on
+ * purpose (docs/17 row 50): "cannot tell" is a real answer and must not be
+ * flattened into either "yours" or "another key's".
+ */
+function describeOwnership(folder: StoreFolderView): string {
+  switch (folder.ownership) {
+    case 'mine':
+      return `${folder.displayName} — yours`;
+    case 'other':
+      return `${folder.displayName} — ANOTHER key’s folder`;
+    case 'unknown':
+      return `${folder.displayName} — its record names no owner`;
+  }
+}
+
 export function FolderDialog({
   connection,
   directory,
   view,
   indexMissing = false,
+  indexImageCount = 0,
   rebuilding = false,
   onRebuildIndex,
   onRefresh,
@@ -101,7 +129,6 @@ export function FolderDialog({
   connection: StoreConnection;
   directory: Directory;
   view: StoreFolderView[];
-  /** True when the folder you opened has no readable index right now. */
   /**
    * True when the folder on screen has no readable index right now. The
    * DIALOG does not rebuild it itself (a WRITE triggered from a render effect
@@ -110,6 +137,13 @@ export function FolderDialog({
    * per refresh.
    */
   indexMissing?: boolean | undefined;
+  /**
+   * How many image objects the LISTING reports for the folder `indexMissing`
+   * is about (an index-less folder is never presented as empty: this is the
+   * number the message names). It belongs to the OPEN folder, so the dialog
+   * takes it from the host rather than assuming it is "mine".
+   */
+  indexImageCount?: number | undefined;
   rebuilding?: boolean | undefined;
   onRebuildIndex?: (() => void) | undefined;
   onRefresh: () => void;
@@ -117,7 +151,16 @@ export function FolderDialog({
   onUploaded: () => void;
 }>): React.JSX.Element {
   const [scope, setScope] = useState<Scope>('My folder');
-  const [openSlug, setOpenSlug] = useState<string | null>(connection.myFolder);
+  /*
+   * The dialog opens on the folder this IDENTITY owns when the store has one
+   * (docs/17 row 50: the record whose `owner` is this key's id), else on the
+   * NAME the app proposes — which is only a proposal until such a record
+   * exists. Deciding this from the slug was the owner's report: his own folder
+   * `test` was not opened, because his key's label slugified to something else.
+   */
+  const [openSlug, setOpenSlug] = useState<string | null>(
+    () => view.find((folder) => folder.ownership === 'mine')?.slug ?? connection.defaultFolderSlug,
+  );
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [matchMode, setMatchMode] = useState<TagMatchMode>('AND');
   const [selected, setSelected] = useState<string[]>([]);
@@ -134,13 +177,13 @@ export function FolderDialog({
    */
   const [quality, setQuality] = useState<StoreQuality>(DEFAULT_STORE_QUALITY);
 
-  const mine = view.find((folder) => folder.mine);
-  const others = view.filter((folder) => !folder.mine);
+  const mine = view.find((folder) => folder.ownership === 'mine');
+  const others = view.filter((folder) => folder.ownership !== 'mine');
 
   // The folders in scope: "My folder" is exactly yours; "All public folders" is
   // everyone's non-private ones PLUS your own (your work stays visible to you
   // even when you flagged it private — the flag hides it from OTHERS).
-  const inScope = scope === 'My folder' ? view.filter((folder) => folder.mine) : view;
+  const inScope = scope === 'My folder' ? view.filter((folder) => folder.ownership === 'mine') : view;
 
   const flatImages = inScope.flatMap((folder) => folder.images);
   const derivedTags = tagCounts(flatImages);
@@ -150,7 +193,8 @@ export function FolderDialog({
    * The folder a LIBRARY push targets: the one currently open in the folder
    * pane, defaulting to your own (docs/17 row 45). The device picker keeps its
    * original destination — your own folder — and the actions area names both, so
-   * neither is a surprise.
+   * neither is a surprise. The folder "open in the pane" is also what the
+   * missing-index message below counts, so the number and the message agree.
    */
   const destination = view.find((folder) => folder.slug === openSlug) ?? mine;
   const destinationSlug = destination?.slug ?? null;
@@ -174,7 +218,7 @@ export function FolderDialog({
 
   const onUpload = (files: FileList | null): void => {
     if (files === null || files.length === 0) return;
-    const target = mine?.slug ?? connection.myFolder;
+    const target = mine?.slug ?? connection.defaultFolderSlug;
     setBusy(true);
     setProgress([]);
     uploadFiles(
@@ -290,7 +334,9 @@ export function FolderDialog({
           />
           <span className="text-caption text-muted">
             {scope === 'My folder'
-              ? `Your folder: ${connection.myFolder}`
+              ? mine === undefined
+                ? `No folder record in the store names key ${connection.who.id} as its owner yet — the app proposes "${connection.defaultFolderSlug}". Create one below.`
+                : `Your folder: ${mine.slug}`
               : `${String(others.filter((folder) => !folder.private).length)} public folder${others.filter((folder) => !folder.private).length === 1 ? '' : 's'} from other keys, plus yours`}
           </span>
         </div>
@@ -338,7 +384,7 @@ export function FolderDialog({
           <p className="px-1 text-label text-muted">My folder</p>
           {mine === undefined ? (
             <p className="px-1 py-1 text-caption text-muted">
-              No folder for this key yet — create one.
+              No folder record in the store owns this key yet — create one.
             </p>
           ) : (
             <FolderRow
@@ -355,7 +401,7 @@ export function FolderDialog({
               onMissingIndex={mine.missingIndex}
             />
           )}
-          <p className="mt-3 px-1 text-label text-muted">Other people&apos;s public folders</p>
+          <p className="mt-3 px-1 text-label text-muted">Other folders visible to you</p>
           {others.length === 0 ? (
             <p className="px-1 py-1 text-caption text-muted">Nobody else has published one yet.</p>
           ) : (
@@ -402,8 +448,8 @@ export function FolderDialog({
           {indexMissing ? (
             <p className="card p-3 text-body text-muted" role="status">
               This folder&apos;s index could not be read, so the app is rebuilding it from the store
-              listing and each image&apos;s own header — {String(mine?.indexImageCount ?? 0)} image
-              {mine?.indexImageCount === 1 ? '' : 's'} found in the store.{' '}
+              listing and each image&apos;s own header — {String(indexImageCount)} image
+              {indexImageCount === 1 ? '' : 's'} found in the store.{' '}
               {rebuilding ? 'Rebuilding…' : ''}{' '}
               {onRebuildIndex !== undefined && !rebuilding && (
                 <button type="button" className={buttonClass('secondary')} onClick={onRebuildIndex}>
@@ -456,20 +502,30 @@ export function FolderDialog({
         WHERE a library push lands. The folder on screen is the default target
         (the owner's brief), falling back to his own folder; another key's folder
         is a legal target because the store has no per-object permissions, and
-        the dialog says so instead of pretending otherwise.
+        the dialog says so instead of pretending otherwise. Ownership is read
+        from the record's `owner` — the key ID — so the sentence below can never
+        accuse the owner of his own folder (docs/17 row 50), and a record that
+        names NO owner gets its own true sentence rather than a guess.
       */}
       <p className="text-caption text-muted">
         Library push destination:{' '}
         <span className="font-mono">{destinationSlug ?? '—'}</span>
-        {destination === undefined
-          ? ''
-          : ` (${destination.displayName}${destination.mine ? ' — yours' : ' — ANOTHER key’s folder'})`}
+        {destination === undefined ? '' : ` (${describeOwnership(destination)})`}
       </p>
-      {destination !== undefined && !destination.mine && (
+      {destination?.ownership === 'other' && (
         <p role="status" className="card border-warn bg-warn-surface p-2 text-caption text-on-warn-surface">
           A library push goes into <span className="font-mono">{destination.slug}</span>, which
           belongs to another key. The store has no per-object permissions, so this works — and its
           owner will see your images.
+        </p>
+      )}
+      {destination?.ownership === 'unknown' && (
+        <p role="status" className="card border-warn bg-warn-surface p-2 text-caption text-on-warn-surface">
+          A library push goes into <span className="font-mono">{destination.slug}</span>. Its folder
+          record names no owner, so the app cannot tell whether this folder is yours — it is not
+          claiming that it is, and it is not claiming that a different key owns it. The store has no
+          per-object permissions, so the push works either way; anyone reading the folder will see
+          your images.
         </p>
       )}
       <div className="flex flex-wrap items-center gap-2">
@@ -587,7 +643,10 @@ function FolderRow({
         <span className="text-caption text-muted">{folder.images.length}</span>
       </button>
       <span className="text-caption text-muted">
-        {folder.slug} · by {folder.owner}
+        {folder.slug} ·{' '}
+        {folder.ownership === 'unknown'
+          ? 'no owner is recorded in its folder record'
+          : `by ${folder.owner}`}
         {folder.private ? ' · private (this app honours it)' : ''}
       </span>
       {onMissingIndex === true && (

@@ -356,12 +356,15 @@ it('privacy is HONOURED by this app: another key\'s private folder is hidden, yo
     ['alice', 'secret'],
   );
   const directory = await readDirectory(target);
-  const mine = visibleFolders(directory.folders, 'alice');
-  expect(mine.map((folder) => folder.record.slug)).toEqual(['alice', 'public']);
+  // OWNERSHIP IS THE KEY IDENTITY, NOT THE SLUG (docs/17 row 50): Alice's own
+  // folder is visible to HER because the record's owner is her key id, and
+  // Bob's private one is hidden from her.
+  const mine = visibleFolders(directory.folders, WHO);
+  expect(mine.map(({ listing }) => listing.record.slug)).toEqual(['alice', 'public']);
 
-  // Bob still sees alice's PUBLIC folder and his own private one.
-  const bobs = visibleFolders(directory.folders, 'secret');
-  expect(bobs.map((folder) => folder.record.slug)).toEqual(['alice', 'public', 'secret']);
+  // Bob still sees Alice's PUBLIC folder and his own private one.
+  const bobs = visibleFolders(directory.folders, OTHER_WHO);
+  expect(bobs.map(({ listing }) => listing.record.slug)).toEqual(['alice', 'public', 'secret']);
 
   // And the flag is only a courtesy: the record IS readable by any key.
   const objects = await listObjects(target, 'folder-secret');

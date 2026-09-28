@@ -124,6 +124,40 @@ it('the privacy flag is applied in exactly ONE place', () => {
   );
 });
 
+it('folder OWNERSHIP is decided by the key id in exactly ONE place (docs/17 row 50)', () => {
+  /*
+   * The owner's report: a folder he created with his own key was announced as
+   * ANOTHER key's folder, because ownership was decided by comparing a SLUG
+   * (`folder.record.slug === connection.myFolder`) — a NAME derived from the
+   * key's label — instead of the key ID the record already carries.
+   *
+   * This pin makes the decision single-site. A feature that reintroduces a
+   * slug comparison for ownership is the defect coming back, so both halves are
+   * checked: the ONE definition, and the ABSENCE of the slug comparison at any
+   * consumer.
+   */
+  expect(definers('export function folderOwnership')).toEqual(['src/server/store-folders.ts']);
+  expect(definers('export function myFolderIn')).toEqual(['src/server/store-folders.ts']);
+  // Nothing outside the seam decides ownership at all: consumers read the
+  // `ownership` the seam already decided.
+  const ownershipDeciders = definers('folderOwnership(').filter(
+    (file) => file !== 'src/server/store-folders.ts',
+  );
+  expect(ownershipDeciders).toEqual([]);
+  // The exact defect: `folder.record.slug === connection.<anything>`.
+  const slugComparedToKey = SRC.filter((file) =>
+    /\.record\.slug\s*===\s*connection\./.test(codeByFile.get(file) ?? ''),
+  );
+  expect(slugComparedToKey).toEqual([]);
+  // And "which folder is mine" is asked through the seam, with the IDENTITY.
+  expect(readFileSync('src/features/store/StoreArea.tsx', 'utf8')).toContain(
+    "folder.ownership === 'mine'",
+  );
+  expect(readFileSync('src/features/store/storePush.ts', 'utf8')).toContain(
+    'myFolderIn(directory.folders, connection.who)',
+  );
+});
+
 it('the two upload entry points share ONE uploader (docs/17 row 45)', () => {
   /*
    * The owner's report was a MISSING capability (local gallery images could not

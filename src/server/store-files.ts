@@ -149,8 +149,21 @@ export function parseObjectName(name: string): ObjectNameParts | null {
 export const folderRecordSchema = z.strictObject({
   v: z.literal(OBJECT_VERSION),
   slug: z.string().regex(SLUG_PATTERN),
-  /** The key id that created the folder (from `GET /whoami`). */
-  owner: z.string(),
+  /**
+   * The key id that created the folder (from `GET /whoami`). This is the ONE
+   * field "is this folder mine?" is decided from (docs/17 row 50) — never the
+   * slug, which is a name and not an identity.
+   *
+   * `.default('')` IS THE HONEST READING OF AN ABSENT OWNER, not a mask: a
+   * record written by another client (or an older one) that names no owner is
+   * still a folder — its privacy flag and its images are real — but its
+   * ownership is UNKNOWABLE, and `folderOwnership` reports exactly that. The
+   * alternative (required, no default) made such a record fail validation and
+   * vanish from the app entirely, which is a silent loss dressed as strictness.
+   * An empty string is never a real key id (`GET /whoami` always returns one),
+   * so it cannot collide with a genuine owner.
+   */
+  owner: z.string().default(''),
   /** The key's label, for a human reading the folder list. */
   displayName: z.string(),
   /**
@@ -370,6 +383,13 @@ export function emptyFolderIndex(slug: string): FolderIndex {
 
 /**
  * A folder slug from a `whoami` label (or any owner-typed name).
+ *
+ * A NAME PROPOSAL, NEVER AN IDENTITY (docs/17 row 50): the label is whatever
+ * the operator typed for the key and the operator can RENAME it, so a slug
+ * derived from it may name a different string tomorrow. It is used to propose a
+ * default folder name for a new key and to default a destination when the
+ * identity owns no folder yet; "is this folder mine?" is decided from
+ * `owner` (the key ID), never from this.
  *
  * This is an OUTPUT ENCODER, not a parser (AGENTS rule 5): it maps arbitrary
  * text onto the character contract a name has, exactly as `sanitizeFileName`
