@@ -5,6 +5,7 @@ import { Toaster } from 'sonner';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 import { db } from '@/db/db';
+import { DEFAULT_SETTINGS } from '@/domain/settings';
 import { ExportPanel } from '@/features/export/ExportPanel';
 import { MANIFEST_ENTRY } from '@/features/export/exportLibrary';
 
@@ -18,6 +19,7 @@ import { MANIFEST_ENTRY } from '@/features/export/exportLibrary';
  */
 
 const KEY_SENTINEL = 'sk-or-v1-SENTINEL-9f3c-DO-NOT-EXPORT';
+const STORE_KEY_SENTINEL = 'ssk_SENTINEL-STORE-KEY-DO-NOT-EXPORT';
 const HOSTILE_PROMPT = 'a red fox / ../../etc 🌃';
 
 interface PickerOptions {
@@ -104,8 +106,12 @@ async function seed(): Promise<void> {
     error: null,
   });
   await db.settings.put({
+    ...DEFAULT_SETTINGS,
     id: 'settings',
     openRouterApiKey: KEY_SENTINEL,
+    // A ServerStore key sentinel too (docs/17 row 42): neither credential may
+    // reach an archive.
+    serverStoreKey: STORE_KEY_SENTINEL,
     imageModel: 'google/gemini-2.5-flash-image',
     refineChatModel: 'openai/gpt-5-image',
   });

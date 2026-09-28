@@ -36,12 +36,17 @@ it('an OffscreenCanvas encodes via the async convertToBlob contract, never toDat
   expect(offscreen).not.toContain('toDataURL');
 });
 
-it('toDataURL appears ONLY on the HTMLCanvasElement path', () => {
+it('toDataURL is GONE from src/ entirely (docs/17 row 42)', () => {
+  /*
+   * The one historical use was the detached-`<canvas>` fallback, which the
+   * ServerStore slice deleted: `createImageBitmap` and `OffscreenCanvas` are the
+   * same support class (Baseline 2023), so the fallback could only run where the
+   * decode seam had already failed, and it cost a second canvas implementation,
+   * a second base64 assembly and a second network call site. This pin now
+   * asserts ZERO uses — strictly stronger than "exactly one, on the right path".
+   */
   const hits = code.split('\n').filter((line) => line.includes('toDataURL'));
-  expect(hits).toHaveLength(1);
-  const html = holderFunction('toDataURL');
-  expect(html).toContain('HTMLCanvasElement');
-  expect(html).not.toContain('OffscreenCanvas');
+  expect(hits).toEqual([]);
 });
 
 it('no lying canvas cast hides a missing method', () => {

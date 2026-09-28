@@ -4,7 +4,7 @@ import { beforeEach, expect, it } from 'vitest';
 import { db } from '@/db/db';
 import { conversationSchema, type ChatMessage, type Conversation } from '@/domain/chat';
 import { runSchema, type Run, type StoredImage } from '@/domain/image';
-import type { Settings } from '@/domain/settings';
+import { DEFAULT_SETTINGS, type Settings } from '@/domain/settings';
 import {
   buildBackupArchive,
   buildImagesArchive,
@@ -34,6 +34,7 @@ import {
 const KEY_SENTINEL = 'sk-or-v1-SENTINEL-9f3c-DO-NOT-EXPORT';
 
 const SETTINGS: Settings = {
+  ...DEFAULT_SETTINGS,
   openRouterApiKey: KEY_SENTINEL,
   imageModel: 'google/gemini-2.5-flash-image',
   refineChatModel: 'openai/gpt-5-image',
@@ -249,7 +250,10 @@ it('settings "Keep my settings" touches nothing at all, and the key is untouched
   expect(result.settingsApplied).toBe(false);
 
   const row = await db.settings.get('settings');
+  // The ServerStore fields (docs/17 row 42) come from the defaults the fixture
+  // spreads: an import must not touch them either.
   expect(row).toEqual({
+    ...SETTINGS,
     id: 'settings',
     openRouterApiKey: KEY_SENTINEL,
     imageModel: 'live/model-before',

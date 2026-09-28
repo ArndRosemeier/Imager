@@ -11,6 +11,7 @@ import { beforeEach, expect, it } from 'vitest';
 import { db } from '@/db/db';
 import { getSettings, updateSettings } from '@/db/settingsRepo';
 import type { StoredImage } from '@/domain/image';
+import { DEFAULT_SETTINGS } from '@/domain/settings';
 import { buildBackupArchive, type ExportSource } from '@/features/export/exportLibrary';
 import { applyImport, readLibraryArchive } from '@/features/import/importLibrary';
 
@@ -38,6 +39,7 @@ const SOURCE: ExportSource = {
   runs: [],
   conversations: [],
   settings: {
+    ...DEFAULT_SETTINGS,
     openRouterApiKey: 'IGNORED-NEVER-EXPORTED',
     imageModel: 'archived/image-model',
     refineChatModel: 'archived/refine-model',

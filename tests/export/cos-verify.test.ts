@@ -7,7 +7,7 @@ import { strFromU8, unzipSync } from 'fflate';
 import { expect, it } from 'vitest';
 
 import type { StoredImage } from '@/domain/image';
-import type { Settings } from '@/domain/settings';
+import { DEFAULT_SETTINGS, type Settings } from '@/domain/settings';
 import {
   buildBackupArchive,
   buildImagesArchive,
@@ -34,6 +34,7 @@ function image(id: string, prompt: string, filler: number): StoredImage {
 }
 
 const settings: Settings = {
+  ...DEFAULT_SETTINGS,
   openRouterApiKey: SENTINEL,
   imageModel: 'google/gemini-2.5-flash-image',
   refineChatModel: 'openai/gpt-5-image',

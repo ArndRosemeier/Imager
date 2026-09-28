@@ -69,11 +69,20 @@ it('exactly one file owns the anchor-download fallback', () => {
   expect(hits).toEqual(['src/lib/saveFile.ts']);
 });
 
-it('the save seam has exactly one caller: the shared SaveButton', () => {
+it('the save seam has exactly TWO NAMED callers: SaveButton and the store download', () => {
+  // The save seam is still the ONE place bytes reach the disk. The ServerStore
+  // download (docs/17 row 42) is a SECOND CALLER and deliberately not a second
+  // mechanism: it builds a `SaveRequest` (so the picker opens inside the click)
+  // and calls the same `saveFile`, which is why this list is named rather than
+  // left at one.
   const hits = codeFiles()
     .filter(({ text }) => text.includes('saveFile('))
     .map(({ file }) => file);
-  expect(hits.sort()).toEqual(['src/components/ui.tsx', 'src/lib/saveFile.ts']);
+  expect(hits.sort()).toEqual([
+    'src/components/ui.tsx',
+    'src/features/store/storeTransfer.ts',
+    'src/lib/saveFile.ts',
+  ]);
 });
 
 it('the lightbox uses the save seam, not a hand-rolled <a download>', () => {

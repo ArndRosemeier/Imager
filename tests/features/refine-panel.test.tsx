@@ -297,7 +297,7 @@ it('an encode that yields an EMPTY blob THROWS instead of passing the oversized 
   }
   vi.stubGlobal('OffscreenCanvas', EmptyBlobCanvas);
   const big = new Blob([new Uint8Array([1, 2, 3])], { type: 'image/jpeg' });
-  await expect(prepareReference(big, decodeAt(2000, 1000))).rejects.toThrow(/is empty/);
+  await expect(prepareReference(big, decodeAt(2000, 1000))).rejects.toThrow(/empty/);
 });
 
 it('a zero-sized decode THROWS instead of passing the source through', async () => {
@@ -323,7 +323,12 @@ it('an encode failure during refine → visible error + failed run, no request s
   await user.type(screen.getByLabelText('Instruction'), 'make it night');
   await user.click(screen.getByRole('button', { name: 'Refine' }));
 
-  expect(await screen.findByText(/Run failed: the encoder refused the bitmap/)).toBeInTheDocument();
+  // The failure keeps BOTH halves: the loud "this browser cannot encode X" and
+  // the underlying reason (docs/17 row 42 — an unavailable encoder and a
+  // substituted format are different failures and must not blur together).
+  expect(
+    await screen.findByText(/Run failed: This browser cannot encode image\/jpeg: the encoder refused the bitmap/),
+  ).toBeInTheDocument();
   expect(await screen.findByText('Refinement failed')).toBeInTheDocument();
   expect(posts).toEqual([]);
   const runs = await db.runs.toArray();

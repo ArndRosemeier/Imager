@@ -6,7 +6,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { db } from '@/db/db';
 import { conversationSchema, type Conversation } from '@/domain/chat';
 import { runSchema, type Run, type StoredImage } from '@/domain/image';
-import type { Settings } from '@/domain/settings';
+import { DEFAULT_SETTINGS, type Settings } from '@/domain/settings';
 import { buildBackupArchive, type ExportSource } from '@/features/export/exportLibrary';
 import { ImportPanel } from '@/features/import/ImportPanel';
 
@@ -23,6 +23,7 @@ import { ImportPanel } from '@/features/import/ImportPanel';
 const KEY_SENTINEL = 'sk-or-v1-SENTINEL-9f3c-DO-NOT-EXPORT';
 
 const ARCHIVE_SETTINGS: Settings = {
+  ...DEFAULT_SETTINGS,
   openRouterApiKey: KEY_SENTINEL,
   imageModel: 'google/gemini-2.5-flash-image',
   refineChatModel: 'openai/gpt-5-image',
@@ -145,6 +146,7 @@ async function chooseFile(user: ReturnType<typeof userEvent.setup>): Promise<voi
 
 it('imports a backup through the UI: preview, choices, confirm, result and toast', async () => {
   await db.settings.put({
+    ...DEFAULT_SETTINGS,
     id: 'settings',
     openRouterApiKey: KEY_SENTINEL,
     imageModel: 'live/model-before',
@@ -236,6 +238,7 @@ it('"Replace existing" through the UI takes the file version', async () => {
 
 it('"Keep my settings" through the UI leaves the live settings row alone', async () => {
   await db.settings.put({
+    ...DEFAULT_SETTINGS,
     id: 'settings',
     openRouterApiKey: KEY_SENTINEL,
     imageModel: 'live/model-before',
@@ -251,7 +254,10 @@ it('"Keep my settings" through the UI leaves the live settings row alone', async
 
   const result = await screen.findByLabelText('Import result');
   expect(within(result).getByText(/settings kept$/)).toBeInTheDocument();
+  // The ServerStore fields (docs/17 row 42) are part of "leave my settings
+  // alone" too: the row is byte-identical to what the live database had.
   expect(await db.settings.get('settings')).toEqual({
+    ...DEFAULT_SETTINGS,
     id: 'settings',
     openRouterApiKey: KEY_SENTINEL,
     imageModel: 'live/model-before',

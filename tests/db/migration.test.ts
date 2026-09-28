@@ -8,7 +8,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-it('the v1 settings row survives the v6 bump (images + runs + conversations)', async () => {
+it('the v1 settings row survives the v7 bump (images + runs + conversations + store cache)', async () => {
   const name = 'imager-migration-test';
   const v1 = new Dexie(name);
   v1.version(1).stores({ settings: 'id' });
@@ -16,24 +16,29 @@ it('the v1 settings row survives the v6 bump (images + runs + conversations)', a
   await v1.table('settings').put(row);
   v1.close();
 
-  const v6 = new ImagerDb(name);
-  await expect(v6.settings.get(SETTINGS_ID)).resolves.toEqual(row);
-  expect(v6.verno).toBe(6);
-  await expect(v6.images.count()).resolves.toBe(0);
-  await expect(v6.runs.count()).resolves.toBe(0);
-  await expect(v6.conversations.count()).resolves.toBe(0);
-  v6.close();
+  const v7 = new ImagerDb(name);
+  // The ROW is untouched by the bump: the new ServerStore fields are supplied
+  // by the schema's defaults at READ time, never written back by a migration.
+  await expect(v7.settings.get(SETTINGS_ID)).resolves.toEqual(row);
+  expect(v7.verno).toBe(7);
+  await expect(v7.images.count()).resolves.toBe(0);
+  await expect(v7.runs.count()).resolves.toBe(0);
+  await expect(v7.conversations.count()).resolves.toBe(0);
+  // The v7 cache tables exist and are empty (docs/17 row 42).
+  await expect(v7.storeThumbs.count()).resolves.toBe(0);
+  await expect(v7.storeObjects.count()).resolves.toBe(0);
+  v7.close();
 });
 
 /**
- * The v6 bump adds `StoredImage.tags` (the v5 bump before it added `favorite`).
- * Rows were written by v1 (settings), v3 (images/runs) and v4 (conversations),
- * and only the EXISTING `images` index set is redeclared, so the pin is that
- * nothing moves: every row reads back at v6 with its own meaning — the v3 image
- * WITHOUT a `favorite` key and WITHOUT a `tags` key.
+ * The v4 rows are read at the CURRENT version (v7: the ServerStore cache tables
+ * arrived, docs/17 row 42). The v6 bump before it added `StoredImage.tags` (and
+ * the v5 before that `favorite`); v7 declares only NEW tables, so nothing moves:
+ * every row reads back with its own meaning — the v3 image WITHOUT a `favorite`
+ * key and WITHOUT a `tags` key.
  */
-it('v1, v3 and v4 rows survive the v6 tags bump untouched', async () => {
-  const name = 'imager-migration-test-v6';
+it('v1, v3 and v4 rows survive the v7 store-cache bump untouched', async () => {
+  const name = 'imager-migration-test-v7';
   const v1 = new Dexie(name);
   v1.version(1).stores({ settings: 'id' });
   const row = { id: SETTINGS_ID, openRouterApiKey: 'sk-1', imageModel: 'a/b', refineChatModel: '' };
@@ -80,10 +85,10 @@ it('v1, v3 and v4 rows survive the v6 tags bump untouched', async () => {
   });
   v4.close();
 
-  const v6 = new ImagerDb(name);
-  expect(v6.verno).toBe(6);
-  await expect(v6.settings.get(SETTINGS_ID)).resolves.toEqual(row);
-  const image = await v6.images.get('img-1');
+  const v7 = new ImagerDb(name);
+  expect(v7.verno).toBe(7);
+  await expect(v7.settings.get(SETTINGS_ID)).resolves.toEqual(row);
+  const image = await v7.images.get('img-1');
   expect(image).toMatchObject({ prompt: 'v3 image', source: 'generated', runId: 'run-1' });
   // The stored row was NOT rewritten by the bump: it still has no favourite key
   // and no tags key (the READING path supplies the pre-field meanings — the next
@@ -91,10 +96,10 @@ it('v1, v3 and v4 rows survive the v6 tags bump untouched', async () => {
   expect(image).not.toHaveProperty('favorite');
   expect(image).not.toHaveProperty('tags');
   expect([...(image?.bytes ?? [])]).toEqual([9, 9]);
-  const run = await v6.runs.get('run-1');
+  const run = await v7.runs.get('run-1');
   expect(run).toMatchObject({ kind: 'refine', inputImageIds: ['img-0'], costUsd: 0.5 });
-  await expect(v6.conversations.get('conv-1')).resolves.toMatchObject({ title: 'v4 conversation' });
-  v6.close();
+  await expect(v7.conversations.get('conv-1')).resolves.toMatchObject({ title: 'v4 conversation' });
+  v7.close();
 });
 
 /**

@@ -5,11 +5,12 @@ import { expect, it } from 'vitest';
 
 import { conversationSchema, type Conversation } from '@/domain/chat';
 import { runSchema, type Run, type StoredImage } from '@/domain/image';
-import type { Settings } from '@/domain/settings';
+import { DEFAULT_SETTINGS, type Settings } from '@/domain/settings';
 import {
   EXPORT_FORMAT,
   EXPORT_FORMAT_VERSION,
   KEY_OMITTED_NOTE,
+  STORE_KEY_OMITTED_NOTE,
   MANIFEST_ENTRY,
   buildBackupArchive,
   buildImagesArchive,
@@ -42,11 +43,22 @@ import {
  * from this format without guessing.
  */
 
-/** The sentinel that must never reach any produced archive byte. */
+/** The sentinels that must never reach any produced archive byte. */
 const KEY_SENTINEL = 'sk-or-v1-SENTINEL-9f3c-DO-NOT-EXPORT';
+const STORE_KEY_SENTINEL = 'ssk_SENTINEL-STORE-KEY-DO-NOT-EXPORT';
 
+/**
+ * The settings fixture. The `serverStore*` fields are pulled from the ONE
+ * defaults object (docs/17 row 42) so this suite does not restate them, and the
+ * KEY fields stay explicit sentinels because the key's ABSENCE from every
+ * archive is what this file pins.
+ */
 const SETTINGS: Settings = {
+  ...DEFAULT_SETTINGS,
   openRouterApiKey: KEY_SENTINEL,
+  // The ServerStore credential too (docs/17 row 42): the same allow-list must
+  // drop it, and the sentinel scan below must not find it either.
+  serverStoreKey: STORE_KEY_SENTINEL,
   imageModel: 'google/gemini-2.5-flash-image',
   refineChatModel: 'openai/gpt-5-image',
 };
@@ -304,14 +316,19 @@ it('the manifest states the format, the version and the deliberate key omission'
   expect(manifest.exportedAt).toBe(NOW.toISOString());
   expect(manifest.layout.manifest).toBe(MANIFEST_ENTRY);
   expect(manifest.layout.images).toContain('images/');
-  expect(manifest.secretExcluded.fields).toEqual(['settings.openRouterApiKey']);
-  expect(manifest.secretExcluded.note).toBe(KEY_OMITTED_NOTE);
+  // BOTH credentials are named, in the order the app states them (docs/17 row
+  // 38 added the ServerStore key to the same allow-list machinery).
+  expect(manifest.secretExcluded.fields).toEqual([
+    'settings.openRouterApiKey',
+    'settings.serverStoreKey',
+  ]);
+  expect(manifest.secretExcluded.note).toBe(`${KEY_OMITTED_NOTE} ${STORE_KEY_OMITTED_NOTE}`);
   expect(manifest.description).toContain('backup');
 });
 
 /* --------------------------------------------------------- the key, absent */
 
-it('the sentinel key appears NOWHERE in the produced archive bytes', async () => {
+it('the sentinel keys appear NOWHERE in the produced archive bytes', async () => {
   const archive = await buildBackupArchive(SOURCE, NOW);
   const entries = entriesOf(archive.bytes);
   // 1. The manifest's own text (the sensitive check: a compressed entry would
@@ -323,13 +340,15 @@ it('the sentinel key appears NOWHERE in the produced archive bytes', async () =>
   // it says the value was left out on purpose. Anywhere else is a leak.
   expect(manifestText.split('openRouterApiKey').length - 1).toBe(1);
   expect(JSON.parse(manifestText)).toMatchObject({
-    secretExcluded: { fields: ['settings.openRouterApiKey'] },
+    secretExcluded: { fields: ['settings.openRouterApiKey', 'settings.serverStoreKey'] },
   });
   // 2. Every entry, decoded, and the raw archive: "not anywhere in the bytes".
   for (const [name, data] of Object.entries(entries)) {
     expect(latin1(data), `entry ${name}`).not.toContain(KEY_SENTINEL);
+    expect(latin1(data), `entry ${name}`).not.toContain(STORE_KEY_SENTINEL);
   }
   expect(latin1(archive.bytes)).not.toContain(KEY_SENTINEL);
+  expect(latin1(archive.bytes)).not.toContain(STORE_KEY_SENTINEL);
 });
 
 it('a settings field the export does not know about cannot ride along either', async () => {

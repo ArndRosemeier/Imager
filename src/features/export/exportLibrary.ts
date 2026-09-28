@@ -76,11 +76,28 @@ export const KEY_OMITTED_NOTE =
   'an export is a file, and a key in a file gets emailed, synced and backed ' +
   'up. Re-enter it in Settings after an import.';
 
+/**
+ * The ServerStore key-exclusion sentence (docs/17 row 42). Same reasoning as
+ * `KEY_OMITTED_NOTE`, same mechanism: the ServerStore key is a credential that
+ * gives read/write/delete over the whole `imager` store, so it is excluded from
+ * every export by the settings ALLOW-LIST and named in `secretExcluded.fields`
+ * so the omission is stated rather than silent.
+ */
+export const STORE_KEY_OMITTED_NOTE =
+  'The ServerStore access key is deliberately NOT included either: it grants ' +
+  'read/write/delete over the whole store, and a credential in a file is a ' +
+  'credential someone else has. Re-enter it in Settings after an import.';
+
 /** The longest prompt-derived stem a suggested file name will carry. */
 export const FILE_NAME_STEM_MAX_CHARS = 60;
 
 /** How much of an image id is kept in a human-facing file name. */
 export const FILE_NAME_ID_STUB_CHARS = 8;
+
+/** The suggested file name for a caller-named archive: timestamped. */
+export function timestampedArchiveName(stem: string, now: Date): string {
+  return `${sanitizeFileName(stem, 'imager')}-${isoFileStamp(now)}.zip`;
+}
 
 /** The two export shapes. */
 export const EXPORT_MODES = ['images', 'backup'] as const;
@@ -318,8 +335,8 @@ export async function buildManifest(
         'raw image bytes (never base64) — each images[].fileName above is the archive-relative path',
     },
     secretExcluded: {
-      fields: ['settings.openRouterApiKey'],
-      note: KEY_OMITTED_NOTE,
+      fields: ['settings.openRouterApiKey', 'settings.serverStoreKey'],
+      note: `${KEY_OMITTED_NOTE} ${STORE_KEY_OMITTED_NOTE}`,
     },
     settings: {
       imageModel: source.settings.imageModel,
@@ -348,6 +365,41 @@ export function buildImagesArchive(
     files[imagesZipEntryName(image, index)] = [image.bytes, { level: 0 }];
   });
   return { fileName: exportFileName('images', now), mimeType: ARCHIVE_MIME_TYPE, bytes: zipSync(files) };
+}
+
+/**
+ * ONE entry in a caller-supplied archive: a name that is ALREADY safe (the
+ * caller sanitizes) and the raw bytes.
+ */
+export interface ArchiveFile {
+  name: string;
+  bytes: Uint8Array<ArrayBuffer>;
+}
+
+/**
+ * A ZIP of arbitrary already-named files, STORED (`level: 0`).
+ *
+ * WHY IT LIVES HERE: `zipSync` is the app's ONE archive writer
+ * (`tests/architecture/one-export.test.ts` pins the file), and the
+ * ServerStore download (docs/17 row 42) needs a multi-image archive too. A
+ * second `zipSync` call site in `src/server/` would be two places deciding how
+ * an archive is compressed — the exact drift rule 4 forbids. So the store's
+ * multi-select download goes THROUGH the export seam instead.
+ *
+ * Two files resolving to one entry name are a LOUD error, never a silent
+ * overwrite inside the archive (rule 1).
+ */
+export function buildFilesArchive(files: readonly ArchiveFile[], fileName: string): ExportArchive {
+  const zippable: Zippable = {};
+  for (const file of files) {
+    if (zippable[file.name] !== undefined) {
+      throw new Error(
+        `Two files resolve to the same archive entry "${file.name}" — refusing to write an archive that would silently lose one of them.`,
+      );
+    }
+    zippable[file.name] = [file.bytes, { level: 0 }];
+  }
+  return { fileName, mimeType: ARCHIVE_MIME_TYPE, bytes: zipSync(zippable) };
 }
 
 /**

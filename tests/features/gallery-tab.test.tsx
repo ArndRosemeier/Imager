@@ -78,15 +78,19 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-it('the app bar offers four tabs, the grid belongs to Gallery and Generate has none', async () => {
+it('the app bar offers five tabs, the grid belongs to Gallery and Generate has none', async () => {
   stubFetch(() => jsonResponse({}));
   render(<App />);
   const user = userEvent.setup();
 
+  // The ServerStore tab (docs/17 row 42) sits between Chat and Settings: it is
+  // a place work goes AFTER it exists, and Settings stays the configuration
+  // surface at the end.
   expect(within(sections()).getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
     'Generate',
     'Gallery',
     'Chat',
+    'Store',
     'Settings',
   ]);
   // Generate is the default and it is the FORM: the Create | Refine switch is

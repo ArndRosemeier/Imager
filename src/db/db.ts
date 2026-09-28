@@ -9,12 +9,46 @@ export const SETTINGS_ID = 'settings';
 
 export type SettingsRow = Settings & { id: typeof SETTINGS_ID };
 
+/**
+ * One cached ServerStore thumbnail (docs/17 row 42). Keyed by the OBJECT NAME
+ * the store serves; `sha256` is the hash of the ORIGINAL it was derived from,
+ * which is what makes a listing that reports a new hash invalidate the row.
+ * Both `name` and `sha256` are indexed so a change can be swept without a scan.
+ */
+export interface StoreThumbRow {
+  name: string;
+  sha256: string;
+  bytes: Uint8Array<ArrayBuffer>;
+  mimeType: string;
+  width: number;
+  height: number;
+  cachedAt: number;
+}
+
+/**
+ * One cached ServerStore ORIGINAL, exactly as the service served it (docs/17
+ * row 42). The store holds full quality; this row is a copy of it, not a
+ * reduced one, so a download can be byte-identical to the upload without a
+ * round trip. Same invalidation key as the thumbnail.
+ */
+export interface StoreObjectRow {
+  name: string;
+  sha256: string;
+  bytes: Uint8Array<ArrayBuffer>;
+  mimeType: string;
+  width: number;
+  height: number;
+  cachedAt: number;
+}
+
 /** THE Dexie database. Every version lives here; never edit a shipped one. */
 export class ImagerDb extends Dexie {
   settings!: EntityTable<SettingsRow, 'id'>;
   images!: EntityTable<StoredImage, 'id'>;
   runs!: EntityTable<Run, 'id'>;
   conversations!: EntityTable<Conversation, 'id'>;
+  storeThumbs!: EntityTable<StoreThumbRow, 'name'>;
+  storeObjects!: EntityTable<StoreObjectRow, 'name'>;
 
   constructor(name = 'imager') {
     super(name);
@@ -47,6 +81,16 @@ export class ImagerDb extends Dexie {
     // next to the indexes that did not change (pin: tests/db/migration.test.ts —
     // a row written WITHOUT the field reads as `[]` at v6).
     this.version(6).stores({ images: 'id, createdAt, runId' });
+    // v7 (ServerStore, docs/17 row 42): two NEW tables for the local cache of
+    // store objects (the originals) and the browser thumbnails derived from
+    // them. They are a CACHE, not library data: nothing here is ever exported,
+    // imported, or written back to the store, and an empty cache is a working
+    // state (every path refetches). Only the new stores are declared, so Dexie
+    // carries every v1-v6 store and row forward untouched.
+    this.version(7).stores({
+      storeThumbs: 'name, sha256, cachedAt',
+      storeObjects: 'name, sha256, cachedAt',
+    });
   }
 }
 
