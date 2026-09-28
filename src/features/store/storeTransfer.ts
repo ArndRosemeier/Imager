@@ -21,8 +21,20 @@
  * huge upload still fails HONESTLY, per file, with the service's own
  * `payload_too_large` message, and the batch continues. Nothing is ever
  * downscaled to fit.
+ *
+ * TWO ENTRY POINTS, ONE UPLOADER (docs/17 row 45): a file from this device
+ * (`uploadFiles`) and an image from the LOCAL gallery (`uploadStoredImages`)
+ * both become `UploadSource`s and go through `uploadSources` — ONE encoder, ONE
+ * object model, ONE index update. A `429` keeps its `Retry-After` in the failed
+ * row instead of being retried silently (a retried write could double-upload).
  */
-import { extensionFor } from '@/domain/image';
+import {
+  UPLOADED_IMAGE_MODEL,
+  extensionFor,
+  imageBlob,
+  type ImageSource,
+  type StoredImage,
+} from '@/domain/image';
 import {
   ARCHIVE_MIME_TYPE,
   buildFilesArchive,
@@ -34,14 +46,27 @@ import { sha256Hex } from '@/lib/sha256';
 import { toastSuccess } from '@/lib/toast';
 import { fetchOriginal } from '@/server/store-cache';
 import { DEFAULT_STORE_QUALITY, encodeStoreImage, type StoreQuality } from '@/server/store-encode';
+import { ServerStoreError } from '@/server/store-errors';
 import { ensureIndex, readDirectory, uploadImage } from '@/server/store-folders';
 import type { StoreConnection } from '@/server/store-session';
 
-/** One file's upload progress, reported PER FILE and never as a batch only. */
+/** One upload's progress, reported PER PICTURE and never as a batch only. */
 export type UploadPhase = 'pending' | 'reading' | 'uploading' | 'done' | 'failed';
 
 export interface UploadProgress {
-  fileName: string;
+  /**
+   * A stable identity for THIS picture inside the batch, so the progress list
+   * can replace one row without collapsing two pictures that happen to share a
+   * label (two library images can carry the same prompt). Display code must not
+   * derive it: it is the uploader's own key.
+   */
+  key: string;
+  /**
+   * What the owner reads on the progress row: a device file's NAME, or a
+   * library image's PROMPT. It is the recognisable label of the thing being
+   * pushed, not necessarily a file name.
+   */
+  label: string;
   phase: UploadPhase;
   /** The store object name, once it exists. */
   name?: string;
@@ -49,24 +74,70 @@ export interface UploadProgress {
   error?: string;
 }
 
-/** Read one file into memory. A read failure is that file's failure, not the batch's. */
-async function readFileBytes(file: File): Promise<Uint8Array<ArrayBuffer>> {
-  const buffer = await file.arrayBuffer();
-  return new Uint8Array(buffer);
+/**
+ * ONE picture to push into the store, whatever it came from (docs/17 row 45).
+ *
+ * The two entry points — a file from this device and an image from the local
+ * library — differ ONLY in how the bytes are read and in the metadata that
+ * rides along; everything after this interface is the SAME code, so there is
+ * one encoder, one object model and one index update (rule 4).
+ */
+export interface UploadSource {
+  /** The owner-facing label of the progress row. */
+  label: string;
+  /**
+   * The bytes to encode, produced LAZILY: a read that fails is that picture's
+   * failure and never aborts the batch.
+   */
+  blob: () => Blob | Promise<Blob>;
+  /**
+   * What the object header must carry. For a device file this is the file name
+   * and the tags selected at upload time; for a library image it is the row's
+   * OWN prompt, model, source, tags and creation time, so a store listing shows
+   * what the gallery showed (the owner's "complete with tags and everything").
+   */
+  metadata: {
+    prompt: string;
+    model: string;
+    source: ImageSource;
+    tags: readonly string[];
+    createdAt: Date;
+  };
 }
 
 /**
- * Upload `files` into `slug`, encoded to the store's WebP format, reporting each one.
- *
- * `onProgress` is called as each file moves; the returned array matches the
- * input order. ONE file failing never aborts the others — the owner gets one
- * honest row per file (rule 2), and the successful uploads are real.
+ * The failure text of ONE picture. A `429` keeps its `Retry-After` instead of
+ * being retried silently: this seam never retries (a retried write could
+ * double-upload), so the owner is told how long the service asked him to wait.
  */
-export async function uploadFiles(
+function uploadFailureMessage(error: unknown): string {
+  if (error instanceof ServerStoreError && error.retryAfterSeconds !== null) {
+    return `${error.message} — the store asked to wait ${String(error.retryAfterSeconds)}s (Retry-After). Nothing was retried automatically.`;
+  }
+  return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * THE uploader: push `sources` into `slug`, each encoded to the store's WebP
+ * format at the source's own pixel size, reporting every one of them.
+ *
+ * `onProgress` is called as each picture moves; the returned array matches the
+ * input order. ONE picture failing never aborts the others — the owner gets one
+ * honest row per picture (rule 2), and the successful uploads are real.
+ *
+ * THE SOURCE IDENTITY is computed HERE, once per picture, from the ORIGINAL
+ * bytes before the store re-encode (docs/17 row 45), so BOTH entry points record
+ * it: the object header and the folder index carry `sourceSha256`, the one hash
+ * that can recognise a local picture again after WebP q90 replaced its bytes.
+ *
+ * The whole batch shares ONE index read and ONE sequence counter, advanced in
+ * memory as each PUT lands, so a later picture in the batch cannot reuse a
+ * sequence.
+ */
+export async function uploadSources(
   connection: StoreConnection,
   slug: string,
-  files: readonly File[],
-  tags: readonly string[],
+  sources: readonly UploadSource[],
   onProgress: (progress: UploadProgress) => void,
   quality: StoreQuality = DEFAULT_STORE_QUALITY,
 ): Promise<UploadProgress[]> {
@@ -81,22 +152,33 @@ export async function uploadFiles(
   const { index } = await ensureIndex(target, listing, directory.byName);
   const results: UploadProgress[] = [];
 
-  for (const file of files) {
-    onProgress({ fileName: file.name, phase: 'reading' });
+  for (const [position, source] of sources.entries()) {
+    const key = `${String(position)}:${source.label}`;
+    onProgress({ key, label: source.label, phase: 'reading' });
     try {
-      const bytes = await readFileBytes(file);
-      if (bytes.length === 0) throw new Error('The file is empty.');
-      const mimeType = file.type === '' ? 'application/octet-stream' : file.type;
+      const blob = await source.blob();
+      const mimeType = blob.type === '' ? 'application/octet-stream' : blob.type;
       if (!mimeType.startsWith('image/')) {
         throw new Error(
-          `Not an image: "${mimeType}". The store holds pictures, so a non-image file is refused rather than stored unlabelled.`,
+          `Not an image: "${mimeType}". The store holds pictures, so a non-image is refused rather than stored unlabelled.`,
         );
       }
+      /*
+       * THE SOURCE IDENTITY (docs/17 row 45): the sha256 of the ORIGINAL bytes,
+       * computed HERE in the ONE uploader so BOTH entry points record it. The
+       * stored payload is WebP q90, so its own hash can never identify a local
+       * picture again; this is the hash that survives the re-encode, and it is
+       * the same `sha256(bytes)` the export manifest carries (`src/lib/sha256.ts`,
+       * the ONE hashing seam).
+       */
+      const sourceBytes = new Uint8Array(await blob.arrayBuffer());
+      if (sourceBytes.length === 0) throw new Error('The picture is empty.');
+      const sourceSha256 = await sha256Hex(sourceBytes);
       // Encode to the store format WITHOUT resizing: the pixels and the size
       // are the source's, only the encoding is compressed. A type the browser
       // substituted is refused inside `encodeStoreImage` (rule 1).
-      const encoded = await encodeStoreImage(new Blob([bytes], { type: mimeType }), quality);
-      onProgress({ fileName: file.name, phase: 'uploading' });
+      const encoded = await encodeStoreImage(new Blob([sourceBytes], { type: mimeType }), quality);
+      onProgress({ key, label: source.label, phase: 'uploading' });
       const uploaded = await uploadImage(
         target,
         {
@@ -106,20 +188,26 @@ export async function uploadFiles(
           width: encoded.width,
           height: encoded.height,
           quality: encoded.qualityPercent,
-          // The file name is what the owner will recognise in the folder; it is
-          // stored as DATA (a prompt field), never parsed.
-          prompt: file.name,
-          model: 'uploaded file',
-          source: 'uploaded',
-          tags,
+          /*
+           * The metadata is CARRIED, not invented (docs/17 row 45): a library
+           * push puts the row's own prompt, model, source, tags and creation
+           * time into the object header, so the store shows what the gallery
+           * showed. `favorite` is deliberately NOT carried — a shared store has
+           * no per-user favourite, and the header schema has no field for one.
+           */
+          prompt: source.metadata.prompt,
+          model: source.metadata.model,
+          source: source.metadata.source,
+          tags: source.metadata.tags,
+          sourceSha256,
           id: crypto.randomUUID(),
-          createdAt: new Date(),
+          createdAt: source.metadata.createdAt,
         },
         index,
         directory.entries.map((entry) => entry.name),
       );
-      // The index we hold in memory must advance too, or the next file in this
-      // batch would target the same sequence.
+      // The index we hold in memory must advance too, or the next picture in
+      // this batch would target the same sequence.
       index.nextSeq = uploaded.seq + 1;
       index.images.push({
         id: uploaded.id,
@@ -127,23 +215,100 @@ export async function uploadFiles(
         sha256: uploaded.sha256,
         size: uploaded.size,
         mimeType: encoded.mimeType,
-        tags: [...tags],
-        createdAt: new Date().toISOString(),
+        tags: [...source.metadata.tags],
+        createdAt: source.metadata.createdAt.toISOString(),
+        sourceSha256: uploaded.sourceSha256,
       });
-      const done: UploadProgress = { fileName: file.name, phase: 'done', name: uploaded.name };
+      const done: UploadProgress = { key, label: source.label, phase: 'done', name: uploaded.name };
       onProgress(done);
       results.push(done);
     } catch (error: unknown) {
       const failed: UploadProgress = {
-        fileName: file.name,
+        key,
+        label: source.label,
         phase: 'failed',
-        error: error instanceof Error ? error.message : String(error),
+        error: uploadFailureMessage(error),
       };
       onProgress(failed);
       results.push(failed);
     }
   }
   return results;
+}
+
+/**
+ * The DEVICE-FILE entry point: `Upload images…` in the folder dialog.
+ *
+ * Each file keeps the behaviour it always had — the file NAME is the stored
+ * prompt, the model is the honest "uploaded file" label, the source is
+ * `uploaded`, and the tags are the ones selected in the dialog. It is now a thin
+ * adapter over the ONE uploader above, so this path and a library push cannot
+ * drift apart.
+ */
+export async function uploadFiles(
+  connection: StoreConnection,
+  slug: string,
+  files: readonly File[],
+  tags: readonly string[],
+  onProgress: (progress: UploadProgress) => void,
+  quality: StoreQuality = DEFAULT_STORE_QUALITY,
+): Promise<UploadProgress[]> {
+  const createdAt = new Date();
+  return uploadSources(
+    connection,
+    slug,
+    files.map((file) => ({
+      label: file.name,
+      blob: () => file,
+      metadata: {
+        // The file name is what the owner will recognise in the folder; it is
+        // stored as DATA (a prompt field), never parsed.
+        prompt: file.name,
+        model: UPLOADED_IMAGE_MODEL,
+        source: 'uploaded',
+        tags,
+        createdAt,
+      },
+    })),
+    onProgress,
+    quality,
+  );
+}
+
+/**
+ * The LOCAL-LIBRARY entry point (docs/17 row 45): push stored gallery rows into
+ * a store folder through the SAME uploader.
+ *
+ * What crosses over is the row's own metadata — prompt, model, source, tags and
+ * creation time — and the row's OWN pixels, re-encoded to the store format at
+ * their original size. The `favorite` flag is DROPPED: it is a per-device view
+ * preference, and a shared store has no such concept to write (the object
+ * header schema has no field for it either).
+ */
+export async function uploadStoredImages(
+  connection: StoreConnection,
+  slug: string,
+  images: readonly StoredImage[],
+  onProgress: (progress: UploadProgress) => void,
+  quality: StoreQuality = DEFAULT_STORE_QUALITY,
+): Promise<UploadProgress[]> {
+  return uploadSources(
+    connection,
+    slug,
+    images.map((image) => ({
+      label: image.prompt.trim() === '' ? image.id : image.prompt,
+      blob: () => imageBlob(image),
+      metadata: {
+        prompt: image.prompt,
+        model: image.model,
+        source: image.source,
+        tags: image.tags,
+        createdAt: new Date(image.createdAt),
+      },
+    })),
+    onProgress,
+    quality,
+  );
 }
 
 /**

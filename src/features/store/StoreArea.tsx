@@ -4,6 +4,7 @@ import { buttonClass } from '@/components/styles';
 import { EmptyState } from '@/components/ui';
 import { getSettings } from '@/db/settingsRepo';
 import { FolderDialog, type StoreFolderView } from '@/features/store/FolderDialog';
+import { LibraryPushControl } from '@/features/store/LibraryPush';
 import { saveStoreSelection } from '@/features/store/storeTransfer';
 import { errorMessage, toError } from '@/lib/errors';
 import { toastError, toastSuccess } from '@/lib/toast';
@@ -87,6 +88,19 @@ export function StoreArea(): React.JSX.Element {
           Everything else in Imager keeps working without the store: your library, generating,
           refining, chat and export/import never need this key.
         </p>
+        {/*
+          The library push is reachable here on purpose: with no key the owner can
+          still SEE his library and read exactly why it cannot be pushed yet, which
+          is the degraded-mode rule made visible instead of a dead control.
+        */}
+        <div>
+          <LibraryPushControl
+            connection={null}
+            destination={null}
+            blockedReason="The ServerStore key was refused or the service could not be reached. Retry above, then push again — nothing leaves this browser until it succeeds."
+            onPushed={() => undefined}
+          />
+        </div>
       </div>
     );
   }
@@ -99,6 +113,9 @@ export function StoreArea(): React.JSX.Element {
           title="No ServerStore key yet."
           hint="Ask the operator for a key scoped to the imager store. Until then every other part of Imager works exactly as before — this tab is the only thing that needs it."
         />
+        <div>
+          <LibraryPushControl connection={null} destination={null} onPushed={() => undefined} />
+        </div>
       </div>
     );
   }

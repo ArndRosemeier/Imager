@@ -4,6 +4,8 @@ import { buttonClass } from '@/components/styles';
 import { Segmented } from '@/components/ui';
 import { filterImages, tagCounts, type TagMatchMode } from '@/domain/tags';
 import { TagBar } from '@/features/gallery/TagBar';
+import { LibraryPushControl } from '@/features/store/LibraryPush';
+import { nextSelection } from '@/features/store/selection';
 import { StoreImageTile } from '@/features/store/StoreImageTile';
 import {
   uploadFiles,
@@ -13,8 +15,8 @@ import {
 import { toastError, toastSuccess } from '@/lib/toast';
 import {
   DEFAULT_STORE_QUALITY,
-  STORE_ENCODING_DESCRIPTION,
   STORE_QUALITIES,
+  storeEncodingDescription,
   type StoreQuality,
 } from '@/server/store-encode';
 import type { StoreConnection } from '@/server/store-session';
@@ -33,9 +35,21 @@ import { slugFromLabel } from '@/server/store-files';
  *    holds, the tag filter bar above them (the SAME `TagBar` the gallery uses,
  *    over the same `tagCounts`/`filterImages` seam), and multiselect with a
  *    visible count.
- *  * BOTTOM — upload (multiselect files, per-file progress and per-file errors
- *    that never abort the batch) and download (one image as itself, a
- *    multi-selection as ONE zip).
+ *  * BOTTOM — TWO sibling upload actions, both visible: `Add from gallery…`
+ *    pushes images the owner already has in Imager's LOCAL library (docs/17 row
+ *    44), and `Upload images…` takes files from this device (docs/17 row 42).
+ *    They are two entry points into ONE uploader (`uploadStoredImages` /
+ *    `uploadFiles` → `uploadSources`), so the encoder, the object model and the
+ *    index update cannot drift; each reports per-file progress and per-file
+ *    errors that never abort the batch. Download (one image as itself, a
+ *    multi-selection as ONE zip) sits beside them.
+ *
+ * THE DESTINATION RULE (docs/17 row 45): a LIBRARY push goes into the folder
+ * currently open in the folder pane, defaulting to your own folder, and the
+ * dialog says so on screen. Pushing into another key's folder is ALLOWED — the
+ * store has no per-object permissions and every key writes the whole store — so
+ * the dialog states that too rather than hiding the fact. The DEVICE picker is
+ * unchanged: it still uploads into your own folder, exactly as it always did.
  *
  * PRIVACY IS STATED, NOT IMPLIED: the folder card carries the owner's own
  * framing — the flag is honoured by THIS APP and is not enforced by the server.
@@ -132,26 +146,30 @@ export function FolderDialog({
   const derivedTags = tagCounts(flatImages);
   const visibleImages = filterImages(flatImages, selectedTags, matchMode);
 
+  /*
+   * The folder a LIBRARY push targets: the one currently open in the folder
+   * pane, defaulting to your own (docs/17 row 45). The device picker keeps its
+   * original destination — your own folder — and the actions area names both, so
+   * neither is a surprise.
+   */
+  const destination = view.find((folder) => folder.slug === openSlug) ?? mine;
+  const destinationSlug = destination?.slug ?? null;
+
   function toggleSelect(name: string, event: { ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }): void {
-    const order = visibleImages.map(imageKey);
-    if (event.shiftKey && anchor !== null) {
-      const from = order.indexOf(anchor);
-      const to = order.indexOf(name);
-      if (from >= 0 && to >= 0) {
-        const [start, end] = from < to ? [from, to] : [to, from];
-        setSelected(order.slice(start, end + 1));
-        return;
-      }
-    }
-    if (event.ctrlKey || event.metaKey) {
-      setSelected((current) =>
-        current.includes(name) ? current.filter((entry) => entry !== name) : [...current, name],
-      );
-      setAnchor(name);
-      return;
-    }
-    setSelected([name]);
-    setAnchor(name);
+    /*
+     * THE gesture is ONE function (`nextSelection`): the store's image pane and
+     * the library picker select with the same click / ctrl-cmd-click /
+     * shift-range, over each pane's own VISIBLE order.
+     */
+    const next = nextSelection(
+      selected,
+      anchor,
+      visibleImages.map(imageKey),
+      name,
+      event,
+    );
+    setSelected(next.selected);
+    setAnchor(next.anchor);
   }
 
   const onUpload = (files: FileList | null): void => {
@@ -166,7 +184,7 @@ export function FolderDialog({
       selectedTags,
       (entry) => {
         setProgress((current) => [
-          ...current.filter((row) => row.fileName !== entry.fileName),
+          ...current.filter((row) => row.key !== entry.key),
           entry,
         ]);
       },
@@ -423,7 +441,8 @@ export function FolderDialog({
         {/*
           The quality switch is the SAME `Segmented` control every other choice
           in the app uses, and the sentence beside it is the honest one: the
-          store does NOT keep the uploaded file byte for byte.
+          store does NOT keep the uploaded file byte for byte, and the number in
+          it is the quality actually selected (not always 90).
         */}
         <Segmented
           label="Upload quality"
@@ -431,10 +450,46 @@ export function FolderDialog({
           value={quality}
           onChange={setQuality}
         />
-        <span className="text-caption text-muted">{STORE_ENCODING_DESCRIPTION}</span>
+        <span className="text-caption text-muted">{storeEncodingDescription(quality)}</span>
       </div>
+      {/*
+        WHERE a library push lands. The folder on screen is the default target
+        (the owner's brief), falling back to his own folder; another key's folder
+        is a legal target because the store has no per-object permissions, and
+        the dialog says so instead of pretending otherwise.
+      */}
+      <p className="text-caption text-muted">
+        Library push destination:{' '}
+        <span className="font-mono">{destinationSlug ?? '—'}</span>
+        {destination === undefined
+          ? ''
+          : ` (${destination.displayName}${destination.mine ? ' — yours' : ' — ANOTHER key’s folder'})`}
+      </p>
+      {destination !== undefined && !destination.mine && (
+        <p role="status" className="card border-warn bg-warn-surface p-2 text-caption text-on-warn-surface">
+          A library push goes into <span className="font-mono">{destination.slug}</span>, which
+          belongs to another key. The store has no per-object permissions, so this works — and its
+          owner will see your images.
+        </p>
+      )}
       <div className="flex flex-wrap items-center gap-2">
-        <label className={`${buttonClass('primary')} cursor-pointer`}>
+        {/*
+          THE PRIMARY PATH (owner's words: "the main thing was the local
+          gallery"): images already made in Imager, pushed from the LOCAL library
+          through the same uploader and encoder as everything else.
+        */}
+        <LibraryPushControl
+          connection={connection}
+          destination={destinationSlug}
+          quality={quality}
+          onPushed={onUploaded}
+        />
+        {/*
+          The DEVICE picker stays exactly as it was: same label, same behaviour,
+          still uploading into your own folder. Two visible sibling actions,
+          each honest about what it takes.
+        */}
+        <label className={`${buttonClass('secondary')} cursor-pointer`}>
           {busy ? 'Working…' : 'Upload images…'}
           <input
             type="file"
@@ -488,8 +543,8 @@ export function FolderDialog({
       {progress.length > 0 && (
         <ul aria-label="Upload progress" className="card flex flex-col gap-1 p-2">
           {progress.map((row) => (
-            <li key={row.fileName} className="flex flex-wrap items-baseline gap-2 text-caption">
-              <span className="font-mono text-ink">{row.fileName}</span>
+            <li key={row.key} className="flex flex-wrap items-baseline gap-2 text-caption">
+              <span className="font-mono text-ink">{row.label}</span>
               {row.phase === 'failed' ? (
                 <span className="text-danger">{row.error ?? 'failed'}</span>
               ) : (

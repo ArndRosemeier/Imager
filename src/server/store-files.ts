@@ -201,6 +201,31 @@ export const imageHeaderSchema = z.strictObject({
    * is self-describing, never read as the integrity authority.
    */
   sha256: z.string().regex(/^[0-9a-f]{64}$/).optional(),
+  /**
+   * The hex SHA-256 of the SOURCE bytes this payload was encoded FROM — the
+   * identity that survives the re-encode (docs/17 row 45).
+   *
+   * WHY THIS FIELD EXISTS AND `sha256` ABOVE CANNOT DO ITS JOB: the store holds
+   * WebP q90, so a local PNG/JPEG never hash-matches the stored payload, and the
+   * object's own sha256 (the listing's, over header+payload) can never be
+   * recomputed locally because the header carries a fresh `id`. Comparing
+   * `sha256(local bytes)` with either of those would report "not there" for
+   * every image for ever. The source identity is recorded HERE, at push time,
+   * by the ONE uploader (`uploadSources`), and it is the value a viewer's
+   * "already in the store" check compares against — deterministically, with no
+   * re-encode, no heuristic and no dependence on which browser encoded the
+   * payload.
+   *
+   * It is also the identity the app ALREADY uses for a local image: the export
+   * manifest carries the same `sha256(bytes)` (`src/lib/sha256.ts`, the ONE
+   * hashing seam), so the store's notion of "the same picture" and the archive's
+   * agree instead of being a second, divergent one.
+   *
+   * Optional ON PURPOSE: an object written before this field existed (or by
+   * another client) simply carries no source identity, and a reader must treat
+   * that as "cannot tell", never as a match.
+   */
+  sourceSha256: z.string().regex(/^[0-9a-f]{64}$/).optional(),
 });
 export type ImageHeader = z.infer<typeof imageHeaderSchema>;
 
@@ -309,6 +334,14 @@ export const indexImageSchema = z.strictObject({
   mimeType: z.string().min(1),
   tags: z.array(z.string()),
   createdAt: z.string(),
+  /**
+   * The SOURCE identity from the image's own header — carried here so the
+   * viewer's "is this already in the store?" check costs ONE listing + the
+   * folder indexes instead of a fetch per object (docs/17 row 45). Absent for an
+   * object written before the field existed: a reader must say it cannot tell
+   * rather than guess.
+   */
+  sourceSha256: z.string().regex(/^[0-9a-f]{64}$/).optional(),
 });
 export type IndexImage = z.infer<typeof indexImageSchema>;
 

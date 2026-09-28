@@ -104,6 +104,7 @@ async function uploadOne(
 ) {
   const source = new Blob([new Uint8Array(PIXELS.length).fill(byte)], { type: 'image/png' });
   const encoded = await encodeStoreImage(source, DEFAULT_STORE_QUALITY);
+  const sourceSha256 = await sha256Hex(new Uint8Array(PIXELS.length).fill(byte));
   return uploadImage(
     target,
     {
@@ -117,6 +118,7 @@ async function uploadOne(
       model: 'uploaded file',
       source: 'uploaded',
       tags: ['orc'],
+      sourceSha256,
       id: `img-${String(byte)}`,
       createdAt: new Date(2026, 0, byte),
     },
@@ -151,6 +153,9 @@ it('a folder is created, uploads land at their OWN size as WebP, and the listing
   expect(parsed.height).toBe(800);
   expect(parsed.quality).toBe(90);
   expect(parsed.tags).toEqual(['orc']);
+  // The SOURCE identity is recorded in the header (docs/17 row 45) and carried
+  // into the index, where it survives a re-read (below).
+  expect(parsed.sourceSha256).toBe(await sha256Hex(new Uint8Array(PIXELS.length).fill(1)));
 
   directory = await readDirectory(target);
   expect(directory.folders[0]?.imageNames).toEqual(['i-alice-000001']);
@@ -161,6 +166,9 @@ it('a folder is created, uploads land at their OWN size as WebP, and the listing
   );
   expect(rebuilt.rebuilt).toBe(false);
   expect(rebuilt.index.images.map((image) => image.name)).toEqual(['i-alice-000001']);
+  expect(rebuilt.index.images[0]?.sourceSha256).toBe(
+    await sha256Hex(new Uint8Array(PIXELS.length).fill(1)),
+  );
   expect(rebuilt.index.nextSeq).toBe(2);
 });
 

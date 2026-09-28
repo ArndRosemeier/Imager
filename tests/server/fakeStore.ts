@@ -21,6 +21,20 @@ export interface RecordedRequest {
   target: string;
 }
 
+/**
+ * A failure the fake returns for ONE named PUT, so a test can prove the app's
+ * per-file failure reporting without breaking the whole batch (docs/17 row 45:
+ * one `429` with `Retry-After`, one `413`, …). The code is the service's own
+ * stable vocabulary.
+ */
+export interface FakePutFailure {
+  status: number;
+  code: string;
+  message: string;
+  /** Sent as `Retry-After` (whole seconds) when present. */
+  retryAfterSeconds?: number;
+}
+
 interface StoredObject {
   bytes: Uint8Array;
   sha256: string;
@@ -63,6 +77,8 @@ export class FakeServerStore {
   readonly requests: RecordedRequest[] = [];
   private readonly objects = new Map<string, StoredObject>();
   private readonly options: Required<FakeStoreOptions>;
+  /** Per-object PUT failures, keyed by object name (test lever, not contract). */
+  private readonly putFailures = new Map<string, FakePutFailure>();
 
   constructor(options: FakeStoreOptions = {}) {
     this.options = {
@@ -205,6 +221,19 @@ export class FakeServerStore {
         });
       }
       if (method === 'PUT') {
+        const failure = this.putFailures.get(name);
+        if (failure !== undefined) {
+          this.putFailures.delete(name);
+          record(failure.status, name);
+          const headers: Record<string, string> = { 'content-type': 'application/json' };
+          if (failure.retryAfterSeconds !== undefined) {
+            headers['Retry-After'] = String(failure.retryAfterSeconds);
+          }
+          return new Response(
+            JSON.stringify({ error: { code: failure.code, message: failure.message } }),
+            { status: failure.status, headers },
+          );
+        }
         const body = init?.body;
         // Realm-safe tag check: `instanceof` is unreliable across the
         // environments a test double meets (the app's own schemas use the same
@@ -260,6 +289,17 @@ export class FakeServerStore {
    * let the folder record through and then refuse the image). */
   setMaxBytes(bytes: number): void {
     this.options.maxBytes = bytes;
+  }
+
+  /**
+   * Refuse the NEXT `PUT` to this name with the service's own error envelope,
+   * ONE-SHOT: the entry is consumed by the first matching request, so a later
+   * retry of the same name (the next image in the batch legitimately takes a
+   * freed sequence) can succeed. That is what makes "one failure does not abort
+   * the batch" provable against a specific object.
+   */
+  failNextPut(name: string, failure: FakePutFailure): void {
+    this.putFailures.set(name, failure);
   }
 
   /** Install this fake as `globalThis.fetch`. */

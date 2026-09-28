@@ -7,6 +7,7 @@ import { App } from '@/App';
 import { db } from '@/db/db';
 import { DEFAULT_SETTINGS } from '@/domain/settings';
 import { StoreArea } from '@/features/store/StoreArea';
+import { sha256Hex } from '@/lib/sha256';
 import { DEFAULT_STORE_QUALITY, encodeStoreImage } from '@/server/store-encode';
 import { parseImageObject } from '@/server/store-files';
 import { createFolder, ensureIndex, uploadImage } from '@/server/store-folders';
@@ -85,6 +86,7 @@ async function seedImage(slug: string, listing: FolderListing, position: number)
     new Blob([new Uint8Array(64).fill(position)], { type: 'image/png' }),
     DEFAULT_STORE_QUALITY,
   );
+  const sourceSha256 = await sha256Hex(new Uint8Array(64).fill(position));
   const uploaded = await uploadImage(
     target(),
     {
@@ -98,6 +100,7 @@ async function seedImage(slug: string, listing: FolderListing, position: number)
       model: 'uploaded file',
       source: 'uploaded',
       tags: position === 1 ? ['orc', 'forest'] : ['orc'],
+      sourceSha256,
       id: `seed-${String(position)}`,
       createdAt: new Date(2026, 0, position),
     },
@@ -349,6 +352,11 @@ it('an upload PUTs WebP at the source pixel size, keeps the tags, and reports ea
   expect(storedText).toContain('"tags": [');
   expect(storedText).toContain('"forest"');
   expect(storedText).toContain('"prompt": "photo.png"');
+  // The SAME uploader records the SOURCE identity for the device path too
+  // (docs/17 row 45): the sha256 of the file's ORIGINAL bytes, not the WebP
+  // payload the store now holds.
+  const object = parseImageObject(storedText);
+  expect(object.sourceSha256).toBe(await sha256Hex(new Uint8Array(128).fill(9)));
 });
 
 it('one bad file is a failed ROW; the good file in the same batch still lands', async () => {

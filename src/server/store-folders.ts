@@ -242,6 +242,10 @@ export async function rebuildIndex(
       mimeType: parsed.mimeType,
       tags: parsed.tags,
       createdAt: parsed.createdAt,
+      // The SOURCE identity (docs/17 row 45) is copied straight from the image's
+      // own header, so a rebuild cannot lose it. Absent on an object written
+      // before the field existed — kept absent, never invented.
+      sourceSha256: parsed.sourceSha256,
     });
   }
   const index: FolderIndex = {
@@ -347,20 +351,30 @@ export async function setFolderPrivate(
 export interface UploadResult {
   name: string;
   id: string;
+  /** The service's own sha256 for the stored OBJECT (header + payload). */
   sha256: string;
   size: number;
   seq: number;
+  /**
+   * The SOURCE bytes' own sha256 (docs/17 row 45) — the identity that survives
+   * the re-encode, so a caller can recognise this picture again without
+   * decoding the stored WebP.
+   */
+  sourceSha256: string;
   /** True when a sequence collision was detected and the next free one used. */
   raced: boolean;
 }
 
 /**
- * Upload ONE image at FULL QUALITY (the owner's correction, docs/17 row 42).
+ * Write ONE image object.
  *
- * `bytes` are the source bytes EXACTLY: no resize, no re-encode, no quality
- * reduction. The store's own `sha256` is asserted against the bytes this app
- * computed, so "what was stored is what was uploaded" is verified rather than
- * assumed.
+ * `bytes` are the payload the CALLER already encoded to the store format — WebP
+ * q90 at the source's own pixel size (docs/17 row 41; `uploadSources` in
+ * `src/features/store/storeTransfer.ts` is the caller). This function does no
+ * encoding and no resizing of its own; what it guarantees is that the service
+ * stored exactly the bytes this app sent: the store's own `sha256` is asserted
+ * against the bytes computed here, so "what was stored is what was uploaded" is
+ * verified rather than assumed.
  *
  * ONE `PUT` writes the header and the bytes together, so an image can never
  * exist without its tags. `seq` comes from the index, and the listing is
@@ -380,6 +394,12 @@ export async function uploadImage(
     source: 'generated' | 'uploaded';
     /** The integer quality percent the payload was encoded at (docs/17 row 42). */
     quality: number;
+    /**
+     * The sha256 of the SOURCE bytes the payload was encoded from (docs/17 row
+     * 44). Computed by the ONE uploader (`uploadSources`), never re-derived here
+     * — the source bytes are not available at this seam.
+     */
+    sourceSha256: string;
     tags: readonly string[];
     id: string;
     createdAt: Date;
@@ -410,6 +430,7 @@ export async function uploadImage(
         mimeType: input.mimeType,
         quality: input.quality,
         sha256,
+        sourceSha256: input.sourceSha256,
       };
       const body = new TextEncoder().encode(buildImageObject(header, input.bytes));
       const put = await putObject(target, name, body);
@@ -438,6 +459,10 @@ export async function uploadImage(
             mimeType: header.mimeType,
             tags: [...input.tags],
             createdAt: header.createdAt,
+            // The source identity rides into the index too (docs/17 row 45):
+            // "is this already in the store?" then costs ONE listing instead of
+            // a fetch per object.
+            sourceSha256: input.sourceSha256,
           },
         ],
       };
@@ -452,6 +477,7 @@ export async function uploadImage(
         sha256: put.sha256,
         size: put.size,
         seq: next,
+        sourceSha256: input.sourceSha256,
         raced: attempt > 0,
       };
     }

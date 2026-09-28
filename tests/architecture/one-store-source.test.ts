@@ -18,6 +18,10 @@ import { sourceFiles } from '../helpers';
  *   store-cache.ts    the Dexie cache (thumbnails + originals), hash-validated
  *   store-session.ts  the key, `/whoami`, which folder is "mine"
  *   store-encode.ts   the ONE store-format encoder (WebP q90, verified)
+ *
+ * ... and the two FEATURE seams the store's two upload entry points share:
+ *   src/features/store/storeTransfer.ts  the ONE uploader (`uploadSources`)
+ *   src/features/store/selection.ts      the ONE multiselect gesture
  */
 
 const stripComments = (text: string): string =>
@@ -118,4 +122,48 @@ it('the privacy flag is applied in exactly ONE place', () => {
   expect(readFileSync('src/features/store/StoreArea.tsx', 'utf8')).toContain(
     'courtesy between users of Imager, not a lock',
   );
+});
+
+it('the two upload entry points share ONE uploader (docs/17 row 45)', () => {
+  /*
+   * The owner's report was a MISSING capability (local gallery images could not
+   * reach the store), not a request for a second uploader. A file from this
+   * device and an image from the library are two thin adapters over
+   * `uploadSources`; a second encoder/object-writer would be a second place the
+   * store format could drift.
+   */
+  expect(definers('export async function uploadSources')).toEqual([
+    'src/features/store/storeTransfer.ts',
+  ]);
+  const transfer = codeByFile.get('src/features/store/storeTransfer.ts') ?? '';
+  expect(transfer).toContain('export async function uploadFiles');
+  expect(transfer).toContain('export async function uploadStoredImages');
+  // Both adapters call the ONE core (two call sites, one implementation).
+  expect(transfer.split('return uploadSources(').length - 1).toBe(2);
+  // The encoder and the object writer stay single-site.
+  expect(definers('encodeStoreImage(').filter((file) => file !== 'src/server/store-encode.ts')).toEqual(
+    ['src/features/store/storeTransfer.ts'],
+  );
+  // `uploadImage` is DEFINED in the folder seam; the uploader is its only
+  // feature caller.
+  expect(
+    definers('uploadImage(').filter((file) => file !== 'src/server/store-folders.ts'),
+  ).toEqual(['src/features/store/storeTransfer.ts']);
+});
+
+it('the store pane and the library picker select with ONE gesture (docs/17 row 45)', () => {
+  expect(definers('export function nextSelection')).toEqual(['src/features/store/selection.ts']);
+  // Both panes go through it; neither re-implements shift-range over its own
+  // grid (which is exactly where the two would have drifted).
+  const callers = definers('nextSelection(').filter(
+    (file) => file !== 'src/features/store/selection.ts',
+  );
+  expect(callers.sort()).toEqual([
+    'src/features/store/FolderDialog.tsx',
+    'src/features/store/LibraryPush.tsx',
+  ]);
+  // And neither pane hand-rolls the shift branch.
+  for (const file of callers) {
+    expect(codeByFile.get(file) ?? '').not.toContain('shiftKey &&');
+  }
 });

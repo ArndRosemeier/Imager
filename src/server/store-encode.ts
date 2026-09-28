@@ -185,9 +185,18 @@ export async function encodeThumbnail(
   }
 }
 
-/** The definition of a store object's payload for tests and for the UI copy. */
-export const STORE_ENCODING_DESCRIPTION =
-  'WebP at quality 90, at the image\'s own pixel size — compressed, never resized.';
+/**
+ * The definition of a store object's payload, for the UI copy. It names the
+ * quality ACTUALLY chosen: the quality switch lets the owner pick Balanced or
+ * Small, so the sentence beside it must not keep claiming 90 (an on-screen
+ * number that contradicts what is written is a small lie the uploader can
+ * avoid). Defaults to the owner's `High` (90).
+ */
+export function storeEncodingDescription(
+  quality: StoreQuality = DEFAULT_STORE_QUALITY,
+): string {
+  return `WebP at quality ${String(qualityPercent(quality))}, at the image's own pixel size — compressed, never resized.`;
+}
 
 /** A `data:` URL for an encoded payload, for callers that need one. */
 export function storeBytesToDataUrl(image: StoreImageBytes): string {
