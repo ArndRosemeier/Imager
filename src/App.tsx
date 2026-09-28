@@ -10,6 +10,7 @@ import type { Mode } from '@/features/generate/mode';
 import { Gallery } from '@/features/gallery/Gallery';
 import { SettingsPanel } from '@/features/settings/SettingsPanel';
 import { StoreArea } from '@/features/store/StoreArea';
+import { storePushApi } from '@/features/store/storePush';
 import { useTheme } from '@/lib/theme';
 
 /**
@@ -125,6 +126,13 @@ export function App({ initialTab = 'Generate' }: { initialTab?: Tab }): React.JS
         </main>
       ) : tab === 'Gallery' ? (
         <main className="w-full flex-1 px-3 py-3 sm:px-4">
+          {/*
+            The store-push capability (docs/17 row 48). It is a CAPABILITY, not
+            state: the seam reads the key, the connection and the folder itself,
+            so the shell passes one stable object and owns no store state. With
+            no key the button renders disabled with its reason, and every other
+            lightbox action is unaffected.
+          */}
           <Gallery
             onRefine={(imageId) => {
               // Land on the Generate tab with THAT image as the refine source,
@@ -139,6 +147,7 @@ export function App({ initialTab = 'Generate' }: { initialTab?: Tab }): React.JS
               setAttachRequest({ imageId, nonce: attachNonce.current });
               setTab('Chat');
             }}
+            storePush={storePushApi}
           />
         </main>
       ) : tab === 'Chat' ? (

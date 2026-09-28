@@ -10,6 +10,8 @@ import { GALLERY_GRID_CLASS, GALLERY_SIZES, useGallerySize } from '@/features/ga
 import { TagBar } from '@/features/gallery/TagBar';
 import { TagEditor } from '@/features/gallery/TagEditor';
 import { useImageUrl } from '@/features/gallery/useImageUrl';
+import { StorePushButton } from '@/features/store/StorePushButton';
+import type { StorePushApi } from '@/features/store/storePush';
 import { toError } from '@/lib/errors';
 import { toastError } from '@/lib/toast';
 
@@ -100,6 +102,13 @@ function Lightbox(props: {
   onSetTags: (next: string[]) => Promise<void>;
   onRefine?: (() => void) | undefined;
   onChat?: (() => void) | undefined;
+  /**
+   * The host's store-push capability (docs/17 row 48). Present → the lightbox
+   * offers "Add to store" for the open image; absent → NO such button, exactly
+   * as `onRefine`/`onChat` behave. The control itself never invents the
+   * capability: it lives in `src/features/store/StorePushButton.tsx`.
+   */
+  storePush?: StorePushApi | undefined;
 }): React.JSX.Element {
   const { image } = props;
   const url = useImageUrl(image);
@@ -206,6 +215,16 @@ function Lightbox(props: {
               Chat with this image
             </button>
           )}
+          {/*
+            The store button (docs/17 row 48): one convenience action, and the
+            only place the lightbox reads the store. It is rendered ONLY when the
+            host wired it, and it owns its own "already there" answer — so the
+            viewer's other actions (Save as…, Refine, Chat, favourite, copy,
+            Delete) are untouched whether or not the store is reachable.
+          */}
+          {props.storePush !== undefined && (
+            <StorePushButton image={image} storePush={props.storePush} />
+          )}
           <button type="button" className={buttonClass('dangerInvert')} onClick={onDelete}>
             Delete
           </button>
@@ -236,11 +255,18 @@ function Lightbox(props: {
 export function Gallery({
   onRefine,
   onChat,
+  storePush,
 }: Readonly<{
   /** Present → the lightbox offers "Refine this" for the open image. */
   onRefine?: ((imageId: string) => void) | undefined;
   /** Present → the lightbox offers "Chat with this image" for the open image. */
   onChat?: ((imageId: string) => void) | undefined;
+  /**
+   * Present → the lightbox offers "Add to store" for the open image (docs/17
+   * row 48), checked against the store before it is offered. Absent → absent,
+   * never a disabled stub the host did not ask for.
+   */
+  storePush?: StorePushApi | undefined;
 }>): React.JSX.Element {
   const [images, setImages] = useState<StoredImage[] | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
@@ -386,6 +412,7 @@ export function Gallery({
                   onChat(open.id);
                 }
           }
+          storePush={storePush}
         />
       )}
     </section>
