@@ -9,8 +9,10 @@ import { ExportPanel } from '@/features/export/ExportPanel';
 import { ImportPanel } from '@/features/import/ImportPanel';
 import { testApiKey } from '@/llm/key';
 import {
+  canGenerateAudio,
   canGenerateImages,
   canRefineViaChat,
+  canWriteSongSheet,
   listModels,
   type OpenRouterModel,
 } from '@/llm/models';
@@ -95,6 +97,8 @@ export function SettingsPanel(): React.JSX.Element {
 
   const imageModels = models?.filter(canGenerateImages) ?? [];
   const refineModels = models?.filter(canRefineViaChat) ?? [];
+  const musicModels = models?.filter(canGenerateAudio) ?? [];
+  const writerModels = models?.filter(canWriteSongSheet) ?? [];
 
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-3">
@@ -184,6 +188,24 @@ export function SettingsPanel(): React.JSX.Element {
             selectedId={settings.refineChatModel}
             onSelect={(id) => {
               save({ refineChatModel: id });
+            }}
+          />
+          <ModelPicker
+            label="Music model"
+            hint="Renders songs on the Music tab. Every model that outputs audio is listed; OpenRouter does not mark which are for music and which for speech."
+            models={musicModels}
+            selectedId={settings.musicModel}
+            onSelect={(id) => {
+              save({ musicModel: id });
+            }}
+          />
+          <ModelPicker
+            label="Song-writer model"
+            hint="A text model that rewrites the song sheet from your directions on the Music tab. Only models with structured JSON output are listed."
+            models={writerModels}
+            selectedId={settings.songWriterModel}
+            onSelect={(id) => {
+              save({ songWriterModel: id });
             }}
           />
         </>

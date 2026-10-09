@@ -16,6 +16,14 @@ export const settingsSchema = z.strictObject({
   openRouterApiKey: z.string(),
   imageModel: z.string(),
   refineChatModel: z.string(),
+  /**
+   * The Music tab's two picks (docs/17 row 52): the model that RENDERS a song
+   * (audio out) and the text model that WRITES the song sheet from the owner's
+   * direction. `.default('')` so a row written before the Music tab reads as
+   * "No model selected", the honest first-run state — never a substituted pick.
+   */
+  musicModel: z.string().default(''),
+  songWriterModel: z.string().default(''),
   /** The ServerStore HTTP origin, e.g. `https://store.futuremagic.de`. */
   serverStoreBaseUrl: z.string().default(''),
   /** The store objects live in. Fixed by the dispatcher's object model: `imager`. */
@@ -42,6 +50,8 @@ export const DEFAULT_SETTINGS: Settings = {
   openRouterApiKey: '',
   imageModel: '',
   refineChatModel: '',
+  musicModel: '',
+  songWriterModel: '',
   serverStoreBaseUrl: 'https://store.futuremagic.de',
   serverStoreName: 'imager',
   serverStoreKey: '',

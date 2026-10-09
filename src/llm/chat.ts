@@ -40,9 +40,10 @@ import { MissingApiKeyError, OpenRouterError, parseOpenRouterErrorEnvelope } fro
 import { imageUrlPart } from '@/llm/images';
 import { bytesFromBase64 } from '@/lib/base64';
 
-/** One turn of the conversation as this app replays it. */
+/** One turn of the conversation as this app replays it. A `system` message
+ * carries instructions only (the song writer's brief), never images. */
 export interface ChatTurnMessage {
-  role: 'user' | 'assistant';
+  role: 'system' | 'user' | 'assistant';
   text: string;
   /**
    * `data:` URLs of the images this message produced (assistant turns). The
@@ -57,6 +58,14 @@ export interface ChatRequest {
   model: string;
   /** In order, oldest first. */
   messages: readonly ChatTurnMessage[];
+  /**
+   * What the model may answer with: `['text','image']` for the image-refinement
+   * chat, `['text']` for a text-only call such as the song writer. Required, so
+   * no caller inherits another path's output kinds by accident.
+   */
+  modalities: readonly ('text' | 'image')[];
+  /** The OpenAI-style `response_format` (e.g. a strict `json_schema`). */
+  responseFormat?: Record<string, unknown> | undefined;
   /** Free-form provider image options (`image_config`), e.g. `{ aspect_ratio }`. */
   imageConfig?: Record<string, string | number | readonly unknown[]> | undefined;
   signal?: AbortSignal | undefined;
@@ -167,6 +176,7 @@ function imageFromDataUrl(url: string, status: number): ChatImage {
  */
 function requestMessage(message: ChatTurnMessage): Record<string, unknown> {
   const images = message.imageDataUrls ?? [];
+  if (message.role === 'system') return { role: 'system', content: message.text };
   if (message.role === 'user') {
     if (images.length === 0) return { role: 'user', content: message.text };
     return {
@@ -200,8 +210,9 @@ export async function chatCompletion(req: ChatRequest): Promise<ChatCompletion> 
       body: JSON.stringify({
         model: req.model,
         messages: req.messages.map(requestMessage),
-        modalities: ['text', 'image'],
+        modalities: req.modalities,
         ...(req.imageConfig === undefined ? {} : { image_config: req.imageConfig }),
+        ...(req.responseFormat === undefined ? {} : { response_format: req.responseFormat }),
       }),
       ...(req.signal === undefined ? {} : { signal: req.signal }),
     },

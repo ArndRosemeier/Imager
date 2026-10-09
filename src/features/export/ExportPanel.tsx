@@ -4,6 +4,7 @@ import { SaveButton } from '@/components/ui';
 import {
   ARCHIVE_MIME_TYPE,
   KEY_OMITTED_NOTE,
+  SONGS_NOT_INCLUDED_NOTE,
   STORE_KEY_OMITTED_NOTE,
   buildLibraryArchive,
   exportFileName,
@@ -101,6 +102,7 @@ export function ExportPanel(): React.JSX.Element {
               {/* The ServerStore credential is the SECOND secret the allow-list
                   drops (docs/17 row 42), and it is stated where the first is. */}
               <p className="text-caption text-muted">{STORE_KEY_OMITTED_NOTE}</p>
+              <p className="text-caption text-muted">{SONGS_NOT_INCLUDED_NOTE}</p>
             </div>
             <SaveButton label="Save backup ZIP" buildRequest={() => archiveRequest('backup')} />
           </div>

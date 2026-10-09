@@ -139,6 +139,7 @@ export async function runChatTurn(
     const result = await chatCompletion({
       apiKey: input.apiKey,
       model: input.model,
+      modalities: ['text', 'image'],
       messages: await historyFor(withUser, decode),
       signal: input.signal,
     });

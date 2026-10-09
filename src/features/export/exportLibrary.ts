@@ -88,6 +88,16 @@ export const STORE_KEY_OMITTED_NOTE =
   'read/write/delete over the whole store, and a credential in a file is a ' +
   'credential someone else has. Re-enter it in Settings after an import.';
 
+/**
+ * The Music tab's songs and song chats (docs/17 row 52) are NOT in either
+ * archive yet: the backup format is versioned and strict, and widening it is
+ * its own decision. Stated BEFORE the save so nobody keeps a backup believing
+ * it holds their music.
+ */
+export const SONGS_NOT_INCLUDED_NOTE =
+  'Songs from the Music tab are not included in either file yet — download ' +
+  'the ones you want to keep from the Music tab.';
+
 /** The longest prompt-derived stem a suggested file name will carry. */
 export const FILE_NAME_STEM_MAX_CHARS = 60;
 

@@ -78,3 +78,29 @@ export function canRefineViaChat(model: OpenRouterModel): boolean {
 export function producesTextToo(model: OpenRouterModel): boolean {
   return model.architecture.output_modalities.includes('text');
 }
+
+/**
+ * Output includes audio → can render a song on the music path
+ * (`src/llm/music.ts`). The capability cannot tell a MUSIC model from a SPEECH
+ * model (OpenRouter lists both as `audio` out), so the Music picker shows every
+ * audio-output model and the owner picks — the app never guesses from an id.
+ */
+export function canGenerateAudio(model: OpenRouterModel): boolean {
+  return model.architecture.output_modalities.includes('audio');
+}
+
+/**
+ * The song writer (docs/17 row 52): a TEXT-only model that honours a strict
+ * `json_schema` response format, so the owner's free-text direction is read by
+ * a model into a validated song sheet (AGENTS rule 5). Models that also answer
+ * with images or audio are excluded — they are generators, not writers.
+ */
+export function canWriteSongSheet(model: OpenRouterModel): boolean {
+  const out = model.architecture.output_modalities;
+  return (
+    out.includes('text') &&
+    !out.includes('image') &&
+    !out.includes('audio') &&
+    model.supported_parameters.includes('structured_outputs')
+  );
+}

@@ -2,6 +2,7 @@ import Dexie, { type EntityTable } from 'dexie';
 
 import type { Conversation } from '@/domain/chat';
 import type { Run, StoredImage } from '@/domain/image';
+import type { MusicSession, StoredSong } from '@/domain/music';
 import type { Settings } from '@/domain/settings';
 
 /** The single settings row lives under this fixed key. */
@@ -49,6 +50,8 @@ export class ImagerDb extends Dexie {
   conversations!: EntityTable<Conversation, 'id'>;
   storeThumbs!: EntityTable<StoreThumbRow, 'name'>;
   storeObjects!: EntityTable<StoreObjectRow, 'name'>;
+  songs!: EntityTable<StoredSong, 'id'>;
+  musicSessions!: EntityTable<MusicSession, 'id'>;
 
   constructor(name = 'imager') {
     super(name);
@@ -90,6 +93,14 @@ export class ImagerDb extends Dexie {
     this.version(7).stores({
       storeThumbs: 'name, sha256, cachedAt',
       storeObjects: 'name, sha256, cachedAt',
+    });
+    // v8 (Music tab, docs/17 row 52): two NEW tables. `songs` holds the rendered
+    // audio (bytes as Uint8Array, like images) and `musicSessions` the song
+    // chats, whose messages reference songs by id — never bytes. Only the new
+    // stores are declared, so every v1-v7 store and row is carried forward.
+    this.version(8).stores({
+      songs: 'id, createdAt, sessionId',
+      musicSessions: 'id, updatedAt',
     });
   }
 }

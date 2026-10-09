@@ -3,12 +3,17 @@ import { useId, useMemo, useState } from 'react';
 import { focusRing } from '@/components/styles';
 import {
   acceptsImageInput,
+  canGenerateAudio,
+  canGenerateImages,
   canRefineViaChat,
+  canWriteSongSheet,
   type OpenRouterModel,
 } from '@/llm/models';
 
 interface Props {
   label: string;
+  /** One line under the heading saying what this pick is for, when needed. */
+  hint?: string | undefined;
   models: readonly OpenRouterModel[];
   selectedId: string;
   onSelect: (id: string) => void;
@@ -17,7 +22,7 @@ interface Props {
 /** Prices are USD-per-unit decimal strings; show them as given, per unit. */
 function priceSummary(model: OpenRouterModel): string {
   const parts: string[] = [];
-  for (const key of ['prompt', 'completion', 'image', 'image_output'] as const) {
+  for (const key of ['prompt', 'completion', 'image', 'image_output', 'audio_output'] as const) {
     const value = model.pricing[key];
     if (typeof value === 'string')
       parts.push(`${key} ${value === '-1' ? 'variable' : `$${value}`}`);
@@ -25,8 +30,12 @@ function priceSummary(model: OpenRouterModel): string {
   return parts.length === 0 ? 'price n/a' : parts.join(' · ');
 }
 
+/** What the model can do, read from the capability seam — never from its id. */
 function badges(model: OpenRouterModel): string[] {
-  const out = ['image out'];
+  const out: string[] = [];
+  if (canGenerateImages(model)) out.push('image out');
+  if (canGenerateAudio(model)) out.push('audio out');
+  if (canWriteSongSheet(model)) out.push('structured text');
   if (acceptsImageInput(model)) out.push('image in');
   if (canRefineViaChat(model))
     out.push('chat refine');
@@ -34,7 +43,13 @@ function badges(model: OpenRouterModel): string[] {
 }
 
 /** Searchable single-select model list. Empty selection is a visible state. */
-export function ModelPicker({ label, models, selectedId, onSelect }: Props): React.JSX.Element {
+export function ModelPicker({
+  label,
+  hint,
+  models,
+  selectedId,
+  onSelect,
+}: Props): React.JSX.Element {
   const [query, setQuery] = useState('');
   const searchId = useId();
   const filtered = useMemo(() => {
@@ -48,6 +63,7 @@ export function ModelPicker({ label, models, selectedId, onSelect }: Props): Rea
   return (
     <section aria-label={label} className="card p-3">
       <h3 className="text-heading text-ink">{label}</h3>
+      {hint !== undefined && <p className="text-caption text-muted">{hint}</p>}
       <p className="text-caption text-muted" data-testid={`${label}-selection`}>
         {selectedId === ''
           ? 'No model selected'

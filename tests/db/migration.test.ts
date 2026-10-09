@@ -8,7 +8,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-it('the v1 settings row survives the v7 bump (images + runs + conversations + store cache)', async () => {
+it('the v1 settings row survives the v8 bump (images + runs + conversations + store cache + music)', async () => {
   const name = 'imager-migration-test';
   const v1 = new Dexie(name);
   v1.version(1).stores({ settings: 'id' });
@@ -20,13 +20,17 @@ it('the v1 settings row survives the v7 bump (images + runs + conversations + st
   // The ROW is untouched by the bump: the new ServerStore fields are supplied
   // by the schema's defaults at READ time, never written back by a migration.
   await expect(v7.settings.get(SETTINGS_ID)).resolves.toEqual(row);
-  expect(v7.verno).toBe(7);
+  // v8 (docs/17 row 52) added only the music tables, so the v7 claims hold at v8.
+  expect(v7.verno).toBe(8);
   await expect(v7.images.count()).resolves.toBe(0);
   await expect(v7.runs.count()).resolves.toBe(0);
   await expect(v7.conversations.count()).resolves.toBe(0);
   // The v7 cache tables exist and are empty (docs/17 row 42).
   await expect(v7.storeThumbs.count()).resolves.toBe(0);
   await expect(v7.storeObjects.count()).resolves.toBe(0);
+  // The v8 music tables exist and are empty (docs/17 row 52).
+  await expect(v7.songs.count()).resolves.toBe(0);
+  await expect(v7.musicSessions.count()).resolves.toBe(0);
   v7.close();
 });
 
@@ -86,7 +90,8 @@ it('v1, v3 and v4 rows survive the v7 store-cache bump untouched', async () => {
   v4.close();
 
   const v7 = new ImagerDb(name);
-  expect(v7.verno).toBe(7);
+  // v8 (docs/17 row 52) added only the music tables, so the v7 claims hold at v8.
+  expect(v7.verno).toBe(8);
   await expect(v7.settings.get(SETTINGS_ID)).resolves.toEqual(row);
   const image = await v7.images.get('img-1');
   expect(image).toMatchObject({ prompt: 'v3 image', source: 'generated', runId: 'run-1' });

@@ -34,7 +34,7 @@ it('a USER message with an attached image sends multimodal content parts', async
   const messages: ChatTurnMessage[] = [
     { role: 'user', text: 'start from this', imageDataUrls: [DATA_URL] },
   ];
-  await chatCompletion({ apiKey: 'sk', model: MODEL, messages });
+  await chatCompletion({ apiKey: 'sk', modalities: ['text', 'image'], model: MODEL, messages });
 
   const body = JSON.parse(requests[0]?.body ?? '') as { messages: unknown[] };
   expect(body.messages).toEqual([
@@ -57,6 +57,7 @@ it('an image-only user message sends the image part and no empty text part', asy
   );
   await chatCompletion({
     apiKey: 'sk',
+    modalities: ['text', 'image'],
     model: MODEL,
     messages: [{ role: 'user', text: '', imageDataUrls: [DATA_URL] }],
   });
@@ -70,7 +71,7 @@ it('a user message with NO image stays a plain string', async () => {
   stubChat(() =>
     jsonResponse({ model: MODEL, choices: [{ message: { role: 'assistant', content: 'ok', images: [] } }] }),
   );
-  await chatCompletion({ apiKey: 'sk', model: MODEL, messages: [{ role: 'user', text: 'hello' }] });
+  await chatCompletion({ apiKey: 'sk', modalities: ['text', 'image'], model: MODEL, messages: [{ role: 'user', text: 'hello' }] });
   const body = JSON.parse(requests[0]?.body ?? '') as { messages: unknown[] };
   expect(body.messages).toEqual([{ role: 'user', content: 'hello' }]);
 });
@@ -96,7 +97,7 @@ it('posts modalities + the messages in order and returns text, image bytes and c
     { role: 'assistant', text: 'Done.', imageDataUrls: [DATA_URL] },
     { role: 'user', text: 'now add rain' },
   ];
-  const result = await chatCompletion({ apiKey: 'sk', model: MODEL, messages });
+  const result = await chatCompletion({ apiKey: 'sk', modalities: ['text', 'image'], model: MODEL, messages });
 
   expect(requests).toHaveLength(1);
   expect(requests[0]?.url).toBe('https://openrouter.ai/api/v1/chat/completions');
@@ -136,6 +137,7 @@ it('sends image_config when given, and accepts content returned as parts', async
   );
   const result = await chatCompletion({
     apiKey: 'sk',
+    modalities: ['text', 'image'],
     model: MODEL,
     messages: [{ role: 'user', text: 'hi' }],
     imageConfig: { aspect_ratio: '16:9', quality: 'high' },
@@ -155,6 +157,7 @@ it('an image-only answer is a valid result (text may be empty)', async () => {
   );
   const result = await chatCompletion({
     apiKey: 'sk',
+    modalities: ['text', 'image'],
     model: MODEL,
     messages: [{ role: 'user', text: 'hi' }],
   });
@@ -166,6 +169,7 @@ it('a 200 error envelope is a loud typed error, not a result', async () => {
   stubChat(() => jsonResponse({ error: { code: 400, message: 'Prompt was refused' } }));
   const error: unknown = await chatCompletion({
     apiKey: 'sk',
+    modalities: ['text', 'image'],
     model: MODEL,
     messages: [{ role: 'user', text: 'hi' }],
   }).catch((e: unknown) => e);
@@ -178,6 +182,7 @@ it('a completion with neither text nor images is a loud failure, never an empty 
   stubChat(() => jsonResponse({ choices: [{ message: { role: 'assistant', content: '  ' } }] }));
   const error: unknown = await chatCompletion({
     apiKey: 'sk',
+    modalities: ['text', 'image'],
     model: MODEL,
     messages: [{ role: 'user', text: 'hi' }],
   }).catch((e: unknown) => e);
@@ -202,6 +207,7 @@ it('an image that is not a base64 data URL is a loud boundary failure', async ()
   );
   const error: unknown = await chatCompletion({
     apiKey: 'sk',
+    modalities: ['text', 'image'],
     model: MODEL,
     messages: [{ role: 'user', text: 'hi' }],
   }).catch((e: unknown) => e);
@@ -214,6 +220,7 @@ it('no API key → MissingApiKeyError and no request', async () => {
   stubChat(() => jsonResponse({}));
   const error: unknown = await chatCompletion({
     apiKey: '',
+    modalities: ['text', 'image'],
     model: MODEL,
     messages: [{ role: 'user', text: 'hi' }],
   }).catch((e: unknown) => e);

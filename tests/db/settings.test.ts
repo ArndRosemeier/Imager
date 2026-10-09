@@ -14,6 +14,9 @@ it('defaults are all empty — the app never picks a model', async () => {
     openRouterApiKey: '',
     imageModel: '',
     refineChatModel: '',
+    // The Music tab's two picks (docs/17 row 52): empty, never a chosen model.
+    musicModel: '',
+    songWriterModel: '',
     // The ServerStore fields (docs/17 row 42): the deployment and store name
     // are defaults the app MAY know; the KEY and the folder choice are empty
     // until the owner supplies them.
@@ -42,6 +45,9 @@ it('a settings row written before the ServerStore fields reads as UNCONFIGURED',
     openRouterApiKey: 'sk-old',
     imageModel: 'a/b',
     refineChatModel: '',
+    // A pre-Music row reads the two music picks as unselected (docs/17 row 52).
+    musicModel: '',
+    songWriterModel: '',
     serverStoreBaseUrl: '',
     serverStoreName: '',
     serverStoreKey: '',

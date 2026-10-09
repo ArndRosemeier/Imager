@@ -1,10 +1,13 @@
+import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 import { OpenRouterError } from '@/llm/errors';
 import {
   acceptsImageInput,
+  canGenerateAudio,
   canGenerateImages,
   canRefineViaChat,
+  canWriteSongSheet,
   listModels,
   modelsResponseSchema,
   resetModelCache,
@@ -71,4 +74,24 @@ it('a /models body failing zod is a loud OpenRouterError, not an empty list', as
   // A failure is not cached: the next call fetches again.
   vi.stubGlobal('fetch', () => Promise.resolve(jsonResponse(modelsFixture())));
   await expect(listModels('')).resolves.toHaveLength(13);
+});
+
+/**
+ * The music slice's two capabilities (docs/17 row 52), on the reconstructed
+ * audio listing (`tests/fixtures/models-music.json`).
+ */
+it('canGenerateAudio and canWriteSongSheet read modalities and parameters, never ids', () => {
+  const music = modelsResponseSchema.parse(
+    JSON.parse(readFileSync('tests/fixtures/models-music.json', 'utf8')),
+  ).data;
+  expect(music.filter(canGenerateAudio).map((m) => m.id)).toEqual([
+    'google/lyria-3-pro-preview',
+    'google/lyria-3-clip-preview',
+    'openai/gpt-audio',
+  ]);
+  // Lyria answers with text too but is an audio model; Nano Banana answers with
+  // images; only the text-only structured-output model is a writer.
+  expect(music.filter(canWriteSongSheet).map((m) => m.id)).toEqual([
+    'meta-llama/llama-3.3-70b-instruct',
+  ]);
 });

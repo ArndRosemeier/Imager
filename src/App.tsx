@@ -8,6 +8,7 @@ import { ChatArea } from '@/features/chat/ChatArea';
 import { GenerateArea } from '@/features/generate/GenerateArea';
 import type { Mode } from '@/features/generate/mode';
 import { Gallery } from '@/features/gallery/Gallery';
+import { MusicArea } from '@/features/music/MusicArea';
 import { SettingsPanel } from '@/features/settings/SettingsPanel';
 import { StoreArea } from '@/features/store/StoreArea';
 import { storePushApi } from '@/features/store/storePush';
@@ -16,11 +17,12 @@ import { useTheme } from '@/lib/theme';
 /**
  * The primary tabs ARE the app's navigation (no router). The order reads as the
  * working pipeline: you make an image (Generate), you look at what you made
- * (Gallery), you talk it further (Chat) — then Store is where images are shared
- * with other keys, and Settings is the configuration surface rather than a step
- * in that flow, so it stays last (docs/17 rows 30 and 38).
+ * (Gallery), you talk it further (Chat). Music is the sibling medium, after the
+ * image pipeline (docs/17 row 52). Store is where images are shared with other
+ * keys, and Settings is the configuration surface rather than a step in that
+ * flow, so it stays last (docs/17 rows 30 and 38).
  */
-const TABS = ['Generate', 'Gallery', 'Chat', 'Store', 'Settings'] as const;
+const TABS = ['Generate', 'Gallery', 'Chat', 'Music', 'Store', 'Settings'] as const;
 type Tab = (typeof TABS)[number];
 
 /** The primary tabs are the app's whole navigation (no router). */
@@ -101,7 +103,7 @@ export function App({ initialTab = 'Generate' }: { initialTab?: Tab }): React.JS
         <div className="flex min-w-0 items-baseline gap-2">
           <h1 className="text-title text-ink">Imager</h1>
           <p className="hidden text-caption text-muted md:block">
-            images in, images out — local-first
+            images and music, local-first
           </p>
         </div>
         <div className="order-2 ml-auto flex items-center gap-2">
@@ -156,6 +158,10 @@ export function App({ initialTab = 'Generate' }: { initialTab?: Tab }): React.JS
             attachRequest={attachRequest ?? undefined}
             onAttachConsumed={onAttachConsumed}
           />
+        </main>
+      ) : tab === 'Music' ? (
+        <main className="flex w-full flex-1 flex-col px-3 py-3 sm:px-4">
+          <MusicArea />
         </main>
       ) : tab === 'Store' ? (
         <main className="w-full flex-1 px-3 py-3 sm:px-4">
