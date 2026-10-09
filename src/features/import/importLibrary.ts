@@ -39,6 +39,7 @@ import { db } from '@/db/db';
 import { updateSettings } from '@/db/settingsRepo';
 import { type Conversation } from '@/domain/chat';
 import { runSchema, storedImageSchema, type StoredImage } from '@/domain/image';
+import { storedSongSchema, type MusicSession, type StoredSong } from '@/domain/music';
 import { normalizeTags } from '@/domain/tags';
 import {
   EXPORT_FORMAT,
@@ -47,6 +48,7 @@ import {
   exportManifestSchema,
   type ExportManifest,
   type ExportManifestImage,
+  type ExportManifestSong,
 } from '@/features/export/exportLibrary';
 import { errorMessage } from '@/lib/errors';
 import { sha256Hex } from '@/lib/sha256';
@@ -84,9 +86,16 @@ export interface ArchiveImage {
 
 /** A fully validated archive: safe to preview and, after the owner chooses, to
  * write. Nothing else may be passed to `applyImport`. */
+/** One manifest song entry plus the bytes its entry actually held (docs/17 row 53). */
+export interface ArchiveSong {
+  meta: ExportManifestSong;
+  bytes: Uint8Array<ArrayBuffer>;
+}
+
 export interface ValidatedArchive {
   manifest: ExportManifest;
   images: ArchiveImage[];
+  songs: ArchiveSong[];
 }
 
 /** `JSON.parse` yields `any`; this keeps the strict lint honest at the boundary. */
@@ -158,12 +167,37 @@ export async function readLibraryArchive(
   }
   const manifest = parseManifest(parsedJson);
 
-  const images: ArchiveImage[] = [];
+  const images = await verifiedEntries('image', manifest.images, entries);
+  const songs = await verifiedEntries('song', manifest.songs, entries);
+  return { manifest, images, songs };
+}
+
+/** What every manifest entry with bytes carries (images and songs alike). */
+interface ManifestEntryMeta {
+  id: string;
+  fileName: string;
+  byteLength: number;
+  sha256: string;
+}
+
+/**
+ * THE integrity check for one kind of byte-carrying entry — images and songs go
+ * through the SAME code (docs/17 row 53), so a song can never be held to a
+ * weaker standard than a picture. THROWS on a duplicate id, a missing entry, a
+ * length mismatch or a SHA-256 mismatch, naming the entry.
+ */
+async function verifiedEntries<M extends ManifestEntryMeta>(
+  kind: 'image' | 'song',
+  metas: readonly M[],
+  entries: Readonly<Record<string, Uint8Array<ArrayBuffer>>>,
+): Promise<{ meta: M; bytes: Uint8Array<ArrayBuffer> }[]> {
+  const Kind = kind === 'image' ? 'Image' : 'Song';
+  const verified: { meta: M; bytes: Uint8Array<ArrayBuffer> }[] = [];
   const seenIds = new Set<string>();
-  for (const meta of manifest.images) {
+  for (const meta of metas) {
     if (seenIds.has(meta.id)) {
       throw new Error(
-        `The manifest lists the image id "${meta.id}" more than once — refusing an archive that cannot say which bytes belong to it.`,
+        `The manifest lists the ${kind} id "${meta.id}" more than once — refusing an archive that cannot say which bytes belong to it.`,
       );
     }
     seenIds.add(meta.id);
@@ -171,24 +205,23 @@ export async function readLibraryArchive(
     const entry = entries[meta.fileName];
     if (entry === undefined) {
       throw new Error(
-        `The backup is incomplete: image "${meta.id}" names the entry "${meta.fileName}", but no such entry is in the archive.`,
+        `The backup is incomplete: ${kind} "${meta.id}" names the entry "${meta.fileName}", but no such entry is in the archive.`,
       );
     }
     if (entry.length !== meta.byteLength) {
       throw new Error(
-        `Image "${meta.id}" ("${meta.fileName}") is ${entry.length} bytes in the archive but the manifest says ${meta.byteLength} — refusing a partial import.`,
+        `${Kind} "${meta.id}" ("${meta.fileName}") is ${entry.length} bytes in the archive but the manifest says ${meta.byteLength} — refusing a partial import.`,
       );
     }
     const digest = await sha256Hex(entry);
     if (digest !== meta.sha256) {
       throw new Error(
-        `Image "${meta.id}" ("${meta.fileName}") failed its integrity check: the archive's SHA-256 is ${digest}, the manifest's is ${meta.sha256}. The file is corrupt or was modified — nothing was imported.`,
+        `${Kind} "${meta.id}" ("${meta.fileName}") failed its integrity check: the archive's SHA-256 is ${digest}, the manifest's is ${meta.sha256}. The file is corrupt or was modified — nothing was imported.`,
       );
     }
-    images.push({ meta, bytes: entry });
+    verified.push({ meta, bytes: entry });
   }
-
-  return { manifest, images };
+  return verified;
 }
 
 /* ------------------------------------------------------------- the preview */
@@ -212,12 +245,16 @@ export interface ImportPreview {
   images: TablePlan;
   runs: TablePlan;
   conversations: TablePlan;
+  songs: TablePlan;
+  musicSessions: TablePlan;
   /**
    * Image ids referenced by the archive's runs/conversations that resolve to
    * NEITHER an archive entry NOR the live library — they will still be dangling
    * after the import. Imported anyway, and named so the owner knows.
    */
   danglingImageIds: string[];
+  /** The same, for the songs the song chats point at (docs/17 row 53). */
+  danglingSongIds: string[];
 }
 
 function planFor(incomingIds: readonly string[], existing: ReadonlySet<string>): TablePlan {
@@ -241,6 +278,20 @@ function danglingIds(manifest: ExportManifest, resolvable: ReadonlySet<string>):
   return [...referencedImageIds(manifest)].filter((id) => !resolvable.has(id)).sort();
 }
 
+/**
+ * Song ids the archive's song chats point at that resolve to NEITHER an archive
+ * song NOR the live library (docs/17 row 53). The archive is built from rows
+ * that always land together, so this is empty for a real backup; a hand-edited
+ * one is imported and REPORTED, the same tolerance images get.
+ */
+function danglingSongIds(manifest: ExportManifest, resolvable: ReadonlySet<string>): string[] {
+  const referenced = new Set<string>();
+  for (const session of manifest.musicSessions) {
+    for (const message of session.messages) if (message.songId !== '') referenced.add(message.songId);
+  }
+  return [...referenced].filter((id) => !resolvable.has(id)).sort();
+}
+
 /** The ids the live database already holds for one table. */
 async function existingIds<T extends { id: string }>(
   table: EntityTable<T, 'id'>,
@@ -256,10 +307,12 @@ async function existingIds<T extends { id: string }>(
  * informed rather than blind.
  */
 export async function previewImport(archive: ValidatedArchive): Promise<ImportPreview> {
-  const [imageIds, runIds, conversationIds] = await Promise.all([
+  const [imageIds, runIds, conversationIds, songIds, musicSessionIds] = await Promise.all([
     existingIds(db.images),
     existingIds(db.runs),
     existingIds(db.conversations),
+    existingIds(db.songs),
+    existingIds(db.musicSessions),
   ]);
   const { manifest } = archive;
   // An image resolves after the import if the archive carries it (it will be
@@ -281,7 +334,19 @@ export async function previewImport(archive: ValidatedArchive): Promise<ImportPr
       manifest.conversations.map((conversation) => conversation.id),
       conversationIds,
     ),
+    songs: planFor(
+      manifest.songs.map((song) => song.id),
+      songIds,
+    ),
+    musicSessions: planFor(
+      manifest.musicSessions.map((session) => session.id),
+      musicSessionIds,
+    ),
     danglingImageIds: danglingIds(manifest, resolvable),
+    danglingSongIds: danglingSongIds(
+      manifest,
+      new Set([...songIds, ...manifest.songs.map((song) => song.id)]),
+    ),
   };
 }
 
@@ -299,9 +364,12 @@ export interface ImportResult {
   images: WriteTally;
   runs: WriteTally;
   conversations: WriteTally;
+  songs: WriteTally;
+  musicSessions: WriteTally;
   /** True only for the "Apply settings" choice, and only if the write returned. */
   settingsApplied: boolean;
   danglingImageIds: string[];
+  danglingSongIds: string[];
 }
 
 /** The whole result as one short sentence (the toast and the panel show the
@@ -313,6 +381,8 @@ export function importResultSummary(result: ImportResult): string {
     part('images', result.images),
     part('runs', result.runs),
     part('conversations', result.conversations),
+    part('songs', result.songs),
+    part('song chats', result.musicSessions),
     result.settingsApplied ? 'settings applied' : 'settings kept',
   ].join(' · ');
 }
@@ -363,6 +433,23 @@ function imageRow(meta: ExportManifestImage, bytes: Uint8Array<ArrayBuffer>): St
   });
 }
 
+/** A manifest song entry plus its verified bytes → the stored row. */
+function songRow(meta: ExportManifestSong, bytes: Uint8Array<ArrayBuffer>): StoredSong {
+  return storedSongSchema.parse({
+    id: meta.id,
+    sessionId: meta.sessionId,
+    bytes,
+    mimeType: meta.mimeType,
+    title: meta.title,
+    sheet: meta.sheet,
+    prompt: meta.prompt,
+    transcript: meta.transcript,
+    model: meta.model,
+    costUsd: meta.costUsd,
+    createdAt: meta.createdAt,
+  });
+}
+
 /**
  * Apply a validated archive. ONE Dexie transaction across every table it writes
  * (images, runs, conversations and — when settings are applied — settings), so
@@ -380,22 +467,27 @@ export async function applyImport(
   const images = archive.images.map(({ meta, bytes }) => imageRow(meta, bytes));
   const runs = archive.manifest.runs.map((run) => runSchema.parse(run));
   const conversations: Conversation[] = archive.manifest.conversations;
+  const songs = archive.songs.map(({ meta, bytes }) => songRow(meta, bytes));
+  const musicSessions: MusicSession[] = archive.manifest.musicSessions;
   const resolvable = new Set<string>([
     ...(await existingIds(db.images)),
     ...archive.manifest.images.map((image) => image.id),
   ]);
   const dangling = danglingIds(archive.manifest, resolvable);
+  const danglingSongs = danglingSongIds(
+    archive.manifest,
+    new Set([...(await existingIds(db.songs)), ...songs.map((song) => song.id)]),
+  );
 
   return db.transaction(
     'rw',
-    db.images,
-    db.runs,
-    db.conversations,
-    db.settings,
+    [db.images, db.runs, db.conversations, db.songs, db.musicSessions, db.settings],
     async (): Promise<ImportResult> => {
       const imageTally = await writeRows(db.images, images, choices.conflict);
       const runTally = await writeRows(db.runs, runs, choices.conflict);
       const conversationTally = await writeRows(db.conversations, conversations, choices.conflict);
+      const songTally = await writeRows(db.songs, songs, choices.conflict);
+      const musicSessionTally = await writeRows(db.musicSessions, musicSessions, choices.conflict);
 
       let settingsApplied = false;
       if (choices.settings === 'Apply settings') {
@@ -404,6 +496,14 @@ export async function applyImport(
         await updateSettings({
           imageModel: archive.manifest.settings.imageModel,
           refineChatModel: archive.manifest.settings.refineChatModel,
+          // Only what the archive RECORDED: a pre-Music archive has no music
+          // picks, so the current ones stay (docs/17 row 53).
+          ...(archive.manifest.settings.musicModel === undefined
+            ? {}
+            : { musicModel: archive.manifest.settings.musicModel }),
+          ...(archive.manifest.settings.songWriterModel === undefined
+            ? {}
+            : { songWriterModel: archive.manifest.settings.songWriterModel }),
         });
         settingsApplied = true;
       }
@@ -412,8 +512,11 @@ export async function applyImport(
         images: imageTally,
         runs: runTally,
         conversations: conversationTally,
+        songs: songTally,
+        musicSessions: musicSessionTally,
         settingsApplied,
         danglingImageIds: dangling,
+        danglingSongIds: danglingSongs,
       };
     },
   );

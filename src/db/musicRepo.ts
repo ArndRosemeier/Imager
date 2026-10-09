@@ -32,6 +32,11 @@ export async function getMusicSession(id: string): Promise<MusicSession | undefi
   return row === undefined ? undefined : parseSession(row);
 }
 
+/** Every stored song, oldest first (the backup's order; docs/17 row 53). */
+export async function listSongs(): Promise<StoredSong[]> {
+  return (await db.songs.orderBy('createdAt').toArray()).map(parseSong);
+}
+
 export async function getSong(id: string): Promise<StoredSong | undefined> {
   const row = await db.songs.get(id);
   return row === undefined ? undefined : parseSong(row);

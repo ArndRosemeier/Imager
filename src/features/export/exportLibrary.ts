@@ -30,6 +30,7 @@ import { z } from 'zod';
 
 import { listConversations } from '@/db/chatRepo';
 import { listImages, listRuns } from '@/db/imageRepo';
+import { listMusicSessions, listSongs } from '@/db/musicRepo';
 import { getSettings } from '@/db/settingsRepo';
 import { conversationSchema, type Conversation } from '@/domain/chat';
 import {
@@ -39,7 +40,14 @@ import {
   type Run,
   type StoredImage,
 } from '@/domain/image';
+import {
+  musicSessionSchema,
+  songSheetSchema,
+  type MusicSession,
+  type StoredSong,
+} from '@/domain/music';
 import type { Settings } from '@/domain/settings';
+import { audioExtensionFor } from '@/lib/audioFormat';
 import { sha256Hex } from '@/lib/sha256';
 import { strToU8, zipSync, type Zippable } from '@/lib/zip';
 
@@ -62,6 +70,10 @@ export const MANIFEST_ENTRY = 'manifest.json';
 
 /** The directory the raw image bytes live under in the internal format. */
 export const INTERNAL_IMAGE_DIR = 'images';
+
+/** The directory the raw song bytes live under in the internal format
+ * (docs/17 row 53). */
+export const INTERNAL_SONG_DIR = 'songs';
 
 /** The ONE archive MIME type (both modes are ZIPs). */
 export const ARCHIVE_MIME_TYPE = 'application/zip';
@@ -87,16 +99,6 @@ export const STORE_KEY_OMITTED_NOTE =
   'The ServerStore access key is deliberately NOT included either: it grants ' +
   'read/write/delete over the whole store, and a credential in a file is a ' +
   'credential someone else has. Re-enter it in Settings after an import.';
-
-/**
- * The Music tab's songs and song chats (docs/17 row 52) are NOT in either
- * archive yet: the backup format is versioned and strict, and widening it is
- * its own decision. Stated BEFORE the save so nobody keeps a backup believing
- * it holds their music.
- */
-export const SONGS_NOT_INCLUDED_NOTE =
-  'Songs from the Music tab are not included in either file yet — download ' +
-  'the ones you want to keep from the Music tab.';
 
 /** The longest prompt-derived stem a suggested file name will carry. */
 export const FILE_NAME_STEM_MAX_CHARS = 60;
@@ -177,6 +179,16 @@ export function internalImagePath(image: StoredImage): string {
   )}`;
 }
 
+/**
+ * The path of one song inside the INTERNAL format, keyed by id exactly like an
+ * image (docs/17 row 53); the extension is the one the stored type names.
+ */
+export function internalSongPath(song: StoredSong): string {
+  return `${INTERNAL_SONG_DIR}/${sanitizeFileName(song.id, 'song')}.${audioExtensionFor(
+    song.mimeType,
+  )}`;
+}
+
 /** `2026-09-26T08:10:11.123Z` → `2026-09-26T08-10-11-123Z` (no `:` or `.` on
  * Windows, and one unambiguous `.zip` at the end). */
 function isoFileStamp(now: Date): string {
@@ -206,6 +218,14 @@ export interface ExportArchive {
 export const exportedSettingsSchema = z.strictObject({
   imageModel: z.string(),
   refineChatModel: z.string(),
+  /**
+   * The Music tab's two picks (docs/17 rows 52/53). OPTIONAL, not defaulted: an
+   * archive written before the Music tab did not record them, and "Apply
+   * settings" must then leave the owner's current picks alone rather than
+   * clear them with an invented ''. This build always writes both.
+   */
+  musicModel: z.string().optional(),
+  songWriterModel: z.string().optional(),
 });
 
 /**
@@ -250,6 +270,29 @@ export const exportManifestImageSchema = z.strictObject({
 export type ExportManifestImage = z.infer<typeof exportManifestImageSchema>;
 
 /**
+ * One song's metadata inside the manifest (docs/17 row 53): the stored row minus
+ * its bytes, plus the archive entry holding them and the same integrity pair an
+ * image carries, so a truncated or modified song is a LOUD import failure.
+ */
+export const exportManifestSongSchema = z.strictObject({
+  id: z.string().min(1),
+  sessionId: z.string().min(1),
+  /** The ZIP entry path holding this song's raw bytes. */
+  fileName: z.string().min(1),
+  mimeType: z.string().min(1),
+  title: z.string(),
+  sheet: songSheetSchema,
+  prompt: z.string(),
+  transcript: z.string(),
+  model: z.string().min(1),
+  costUsd: z.number().nullable(),
+  createdAt: z.number(),
+  byteLength: z.number().int().nonnegative(),
+  sha256: z.string().regex(/^[0-9a-f]{64}$/),
+});
+export type ExportManifestSong = z.infer<typeof exportManifestSongSchema>;
+
+/**
  * THE internal format (version 1). Zod at the boundary in BOTH directions: the
  * builder validates what it writes, so a malformed manifest cannot be produced,
  * and an import has a schema to read with. `strictObject` is load-bearing — it
@@ -270,6 +313,8 @@ export const exportManifestSchema = z.strictObject({
     manifest: z.literal(MANIFEST_ENTRY),
     images: z.string().min(1),
     imageBytes: z.string().min(1),
+    /** Where song bytes live; absent in an archive written before songs. */
+    songs: z.string().min(1).optional(),
   }),
   /** What is deliberately NOT in the file, and why. */
   secretExcluded: z.strictObject({
@@ -284,6 +329,14 @@ export const exportManifestSchema = z.strictObject({
   runs: z.array(runSchema),
   /** The chat conversations, verbatim (images by id, as stored). */
   conversations: z.array(conversationSchema),
+  /**
+   * The Music tab (docs/17 row 53): one entry per song, each naming its own
+   * bytes, and the song chats verbatim (songs by id, as stored). `.default([])`
+   * so an archive written before the Music tab imports as "no music" — the
+   * meaning its absence has — instead of failing the strict schema.
+   */
+  songs: z.array(exportManifestSongSchema).default([]),
+  musicSessions: z.array(musicSessionSchema).default([]),
 });
 export type ExportManifest = z.infer<typeof exportManifestSchema>;
 
@@ -292,6 +345,8 @@ export interface ExportSource {
   images: readonly StoredImage[];
   runs: readonly Run[];
   conversations: readonly Conversation[];
+  songs: readonly StoredSong[];
+  musicSessions: readonly MusicSession[];
   settings: Settings;
 }
 
@@ -328,6 +383,23 @@ export async function buildManifest(
       sha256: await sha256Hex(image.bytes),
     })),
   );
+  const songs = await Promise.all(
+    source.songs.map(async (song) => ({
+      id: song.id,
+      sessionId: song.sessionId,
+      fileName: internalSongPath(song),
+      mimeType: song.mimeType,
+      title: song.title,
+      sheet: song.sheet,
+      prompt: song.prompt,
+      transcript: song.transcript,
+      model: song.model,
+      costUsd: song.costUsd,
+      createdAt: song.createdAt,
+      byteLength: song.bytes.length,
+      sha256: await sha256Hex(song.bytes),
+    })),
+  );
   return exportManifestSchema.parse({
     format: EXPORT_FORMAT,
     version: EXPORT_FORMAT_VERSION,
@@ -336,13 +408,15 @@ export async function buildManifest(
     description:
       'Imager library backup — an internal, self-describing format. ' +
       `${MANIFEST_ENTRY} (this file) names every row; image bytes are stored raw ` +
-      `under ${INTERNAL_IMAGE_DIR}/. Every image carries its byte length and SHA-256, ` +
+      `under ${INTERNAL_IMAGE_DIR}/ and song bytes under ${INTERNAL_SONG_DIR}/. Every image ` +
+      'and song carries its byte length and SHA-256, ' +
       'so a reader can verify what it read. No OpenRouter API key is included.',
     layout: {
       manifest: MANIFEST_ENTRY,
       images: `${INTERNAL_IMAGE_DIR}/<id>.<ext>`,
       imageBytes:
         'raw image bytes (never base64) — each images[].fileName above is the archive-relative path',
+      songs: `${INTERNAL_SONG_DIR}/<id>.<ext> — raw audio bytes; each songs[].fileName is the archive-relative path`,
     },
     secretExcluded: {
       fields: ['settings.openRouterApiKey', 'settings.serverStoreKey'],
@@ -351,10 +425,14 @@ export async function buildManifest(
     settings: {
       imageModel: source.settings.imageModel,
       refineChatModel: source.settings.refineChatModel,
+      musicModel: source.settings.musicModel,
+      songWriterModel: source.settings.songWriterModel,
     },
     images,
     runs: source.runs,
     conversations: source.conversations,
+    songs,
+    musicSessions: source.musicSessions,
   });
 }
 
@@ -421,16 +499,20 @@ export function buildFilesArchive(files: readonly ArchiveFile[], fileName: strin
 export async function buildBackupArchive(source: ExportSource, now: Date): Promise<ExportArchive> {
   const manifest = await buildManifest(source, now.toISOString());
   const files: Zippable = { [MANIFEST_ENTRY]: strToU8(JSON.stringify(manifest, null, 2)) };
-  for (const image of source.images) {
-    const path = internalImagePath(image);
-    // Two rows resolving to one entry would let the second silently destroy the
-    // first inside the archive; a backup must never lose data quietly (rule 1).
+  // Images and songs go through the SAME entry writer: two rows resolving to
+  // one entry would let the second silently destroy the first inside the
+  // archive, and a backup must never lose data quietly (rule 1).
+  const entries = [
+    ...source.images.map((image) => ({ path: internalImagePath(image), bytes: image.bytes })),
+    ...source.songs.map((song) => ({ path: internalSongPath(song), bytes: song.bytes })),
+  ];
+  for (const { path, bytes } of entries) {
     if (files[path] !== undefined) {
       throw new Error(
-        `Two stored images resolve to the same archive entry "${path}" — refusing to write a backup that would silently lose one of them.`,
+        `Two stored rows resolve to the same archive entry "${path}" — refusing to write a backup that would silently lose one of them.`,
       );
     }
-    files[path] = [image.bytes, { level: 0 }];
+    files[path] = [bytes, { level: 0 }];
   }
   return {
     fileName: exportFileName('backup', now),
@@ -443,13 +525,15 @@ export async function buildBackupArchive(source: ExportSource, now: Date): Promi
 
 /** Every row the backup carries, in the repos' own (validated) order. */
 export async function collectExportSource(): Promise<ExportSource> {
-  const [images, runs, conversations, settings] = await Promise.all([
+  const [images, runs, conversations, songs, musicSessions, settings] = await Promise.all([
     listImages(),
     listRuns(),
     listConversations(),
+    listSongs(),
+    listMusicSessions(),
     getSettings(),
   ]);
-  return { images, runs, conversations, settings };
+  return { images, runs, conversations, songs, musicSessions, settings };
 }
 
 /** What the library holds, for the size the owner is shown before saving. */
@@ -459,6 +543,10 @@ export interface LibraryStats {
   imageBytes: number;
   runCount: number;
   conversationCount: number;
+  songCount: number;
+  /** The stored song bytes in total (docs/17 row 53). */
+  songBytes: number;
+  musicSessionCount: number;
 }
 
 /**
@@ -467,16 +555,21 @@ export interface LibraryStats {
  * dedicated index would be machinery serving nothing.
  */
 export async function libraryStats(): Promise<LibraryStats> {
-  const [images, runs, conversations] = await Promise.all([
+  const [images, runs, conversations, songs, musicSessions] = await Promise.all([
     listImages(),
     listRuns(),
     listConversations(),
+    listSongs(),
+    listMusicSessions(),
   ]);
   return {
     imageCount: images.length,
     imageBytes: images.reduce((total, image) => total + image.bytes.length, 0),
     runCount: runs.length,
     conversationCount: conversations.length,
+    songCount: songs.length,
+    songBytes: songs.reduce((total, song) => total + song.bytes.length, 0),
+    musicSessionCount: musicSessions.length,
   };
 }
 

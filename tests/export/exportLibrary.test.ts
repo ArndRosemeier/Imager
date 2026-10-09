@@ -153,6 +153,8 @@ const SOURCE: ExportSource = {
   images: IMAGES,
   runs: [RUN],
   conversations: [CONVERSATION],
+  songs: [],
+  musicSessions: [],
   settings: SETTINGS,
 };
 
@@ -356,7 +358,13 @@ it('a settings field the export does not know about cannot ride along either', a
   // dropped by construction rather than by remembering to remove it.
   const widened = { ...SETTINGS, futureSecret: 'sk-or-v1-FUTURE' } as unknown as Settings;
   const manifest = await buildManifest({ ...SOURCE, settings: widened }, NOW.toISOString());
-  expect(Object.keys(manifest.settings).sort()).toEqual(['imageModel', 'refineChatModel']);
+  // The music picks joined the allow-list with docs/17 row 53; the keys still did not.
+  expect(Object.keys(manifest.settings).sort()).toEqual([
+    'imageModel',
+    'musicModel',
+    'refineChatModel',
+    'songWriterModel',
+  ]);
   expect(JSON.stringify(manifest)).not.toContain('futureSecret');
   // And the strict schema refuses the key if anyone ever ADDS it back.
   const withKey = {
@@ -386,6 +394,8 @@ it('ROUND TRIP: the archive alone rebuilds every row, and every pointer resolves
   expect(manifest.settings).toEqual({
     imageModel: SETTINGS.imageModel,
     refineChatModel: SETTINGS.refineChatModel,
+    musicModel: SETTINGS.musicModel,
+    songWriterModel: SETTINGS.songWriterModel,
   });
 
   // --- images: field-for-field the stored row, plus the bytes.

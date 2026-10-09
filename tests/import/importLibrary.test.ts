@@ -121,6 +121,8 @@ const SOURCE: ExportSource = {
   images: [IMAGE_A, IMAGE_B],
   runs: [RUN],
   conversations: [CONVERSATION],
+  songs: [],
+  musicSessions: [],
   settings: SETTINGS,
 };
 
@@ -181,6 +183,8 @@ it('ROUND TRIP: a good archive rebuilds every row, byte-identical, with its ids'
   expect(preview.settings).toEqual({
     imageModel: SETTINGS.imageModel,
     refineChatModel: SETTINGS.refineChatModel,
+    musicModel: SETTINGS.musicModel,
+    songWriterModel: SETTINGS.songWriterModel,
   });
   expect(preview.images).toEqual({ incoming: 2, fresh: 2, existing: 0 });
   expect(preview.runs).toEqual({ incoming: 1, fresh: 1, existing: 0 });
@@ -194,8 +198,11 @@ it('ROUND TRIP: a good archive rebuilds every row, byte-identical, with its ids'
     images: { added: 2, replaced: 0, skipped: 0 },
     runs: { added: 1, replaced: 0, skipped: 0 },
     conversations: { added: 1, replaced: 0, skipped: 0 },
+    songs: { added: 0, replaced: 0, skipped: 0 },
+    musicSessions: { added: 0, replaced: 0, skipped: 0 },
     settingsApplied: true,
     danglingImageIds: [],
+    danglingSongIds: [],
   });
 
   // Counts and ids: preserved, so a conversation's pointers still resolve.

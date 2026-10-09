@@ -54,6 +54,22 @@ function planLine(label: string, plan: ImportPreview['images']): string {
   return `${label}: ${plan.incoming.toString()} in the file — ${plan.fresh.toString()} new, ${plan.existing.toString()} already here`;
 }
 
+/** A music pick as the file recorded it: absent in a pre-Music archive. */
+function musicPickLabel(pick: string | undefined): string {
+  if (pick === undefined) return '(not in this file)';
+  return pick === '' ? '(none)' : pick;
+}
+
+/** What the chosen conflict rule does, over EVERY table the archive carries. */
+function conflictLine(conflict: ConflictChoice, preview: ImportPreview): string {
+  const plans = [preview.images, preview.runs, preview.conversations, preview.songs, preview.musicSessions];
+  const existing = plans.reduce((total, plan) => total + plan.existing, 0);
+  const adds = `Adds ${preview.images.fresh.toString()} new images, ${preview.runs.fresh.toString()} runs, ${preview.conversations.fresh.toString()} conversations, ${preview.songs.fresh.toString()} songs and ${preview.musicSessions.fresh.toString()} song chats`;
+  return conflict === 'Keep both'
+    ? `${adds}; leaves the ${existing.toString()} rows you already have exactly as they are.`
+    : `${adds}; overwrites the ${existing.toString()} rows you already have with the file's version.`;
+}
+
 function madeLabel(exportedAt: string): string {
   const made = new Date(exportedAt);
   return Number.isNaN(made.getTime()) ? exportedAt : made.toLocaleString();
@@ -155,9 +171,15 @@ export function ImportPanel({
               <p className="text-caption text-muted">
                 {planLine('Conversations', loaded.preview.conversations)}
               </p>
+              <p className="text-caption text-muted">{planLine('Songs', loaded.preview.songs)}</p>
+              <p className="text-caption text-muted">
+                {planLine('Song chats', loaded.preview.musicSessions)}
+              </p>
               <p className="text-caption text-muted">
                 Settings in the file: image model {loaded.preview.settings.imageModel || '(none)'},
-                refinement model {loaded.preview.settings.refineChatModel || '(none)'}.
+                refinement model {loaded.preview.settings.refineChatModel || '(none)'}, music model{' '}
+                {musicPickLabel(loaded.preview.settings.musicModel)}, song-writer model{' '}
+                {musicPickLabel(loaded.preview.settings.songWriterModel)}.
               </p>
               {loaded.preview.danglingImageIds.length > 0 && (
                 <p className="text-caption text-muted">
@@ -165,6 +187,14 @@ export function ImportPanel({
                   {loaded.preview.danglingImageIds.length === 1 ? ' is' : 's are'} missing from both
                   the file and your library ({loaded.preview.danglingImageIds.join(', ')}). The runs
                   and chats that point at them are still imported.
+                </p>
+              )}
+              {loaded.preview.danglingSongIds.length > 0 && (
+                <p className="text-caption text-muted">
+                  Note: {loaded.preview.danglingSongIds.length.toString()} referenced song
+                  {loaded.preview.danglingSongIds.length === 1 ? ' is' : 's are'} missing from both the
+                  file and your library ({loaded.preview.danglingSongIds.join(', ')}). The song chats
+                  that point at them are still imported.
                 </p>
               )}
             </div>
@@ -194,9 +224,7 @@ export function ImportPanel({
               />
             </div>
             <p className="mt-1 text-caption text-muted">
-              {conflict === 'Keep both'
-                ? `Adds ${loaded.preview.images.fresh.toString()} new images, ${loaded.preview.runs.fresh.toString()} runs and ${loaded.preview.conversations.fresh.toString()} conversations; leaves the ${(loaded.preview.images.existing + loaded.preview.runs.existing + loaded.preview.conversations.existing).toString()} rows you already have exactly as they are.`
-                : `Adds ${loaded.preview.images.fresh.toString()} new images, ${loaded.preview.runs.fresh.toString()} runs and ${loaded.preview.conversations.fresh.toString()} conversations; overwrites the ${(loaded.preview.images.existing + loaded.preview.runs.existing + loaded.preview.conversations.existing).toString()} rows you already have with the file's version.`}
+              {conflictLine(conflict, loaded.preview)}
             </p>
           </div>
 
@@ -214,7 +242,7 @@ export function ImportPanel({
             </div>
             <p className="mt-1 text-caption text-muted">
               {settingsChoice === 'Apply settings'
-                ? 'Your image and refinement model picks are set from the file. Your OpenRouter API key is not in the file and is left untouched.'
+                ? 'Your model picks are set from the file (a pick the file does not record stays as it is). Your OpenRouter API key is not in the file and is left untouched.'
                 : 'Your settings are left exactly as they are.'}
             </p>
           </div>
@@ -242,6 +270,11 @@ export function ImportPanel({
               {result.danglingImageIds.length > 0 && (
                 <p className="text-caption text-muted">
                   Unresolved image references (imported anyway): {result.danglingImageIds.join(', ')}.
+                </p>
+              )}
+              {result.danglingSongIds.length > 0 && (
+                <p className="text-caption text-muted">
+                  Unresolved song references (imported anyway): {result.danglingSongIds.join(', ')}.
                 </p>
               )}
             </div>

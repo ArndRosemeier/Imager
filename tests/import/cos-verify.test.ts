@@ -38,6 +38,8 @@ const SOURCE: ExportSource = {
   images: [image('cos-a', 7), image('cos-b', 9)],
   runs: [],
   conversations: [],
+  songs: [],
+  musicSessions: [],
   settings: {
     ...DEFAULT_SETTINGS,
     openRouterApiKey: 'IGNORED-NEVER-EXPORTED',

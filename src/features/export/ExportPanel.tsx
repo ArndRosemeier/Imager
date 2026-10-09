@@ -4,7 +4,6 @@ import { SaveButton } from '@/components/ui';
 import {
   ARCHIVE_MIME_TYPE,
   KEY_OMITTED_NOTE,
-  SONGS_NOT_INCLUDED_NOTE,
   STORE_KEY_OMITTED_NOTE,
   buildLibraryArchive,
   exportFileName,
@@ -55,7 +54,7 @@ export function ExportPanel(): React.JSX.Element {
   const backupSize =
     stats === null
       ? ''
-      : `${stats.runCount} runs · ${stats.conversationCount} conversations · ${imageSize} + manifest`;
+      : `${stats.runCount} runs · ${stats.conversationCount} conversations · ${imageSize} · ${stats.songCount} songs (≈ ${formatBytes(stats.songBytes)}) in ${stats.musicSessionCount} song chats + manifest`;
 
   return (
     <section aria-label="Save your work" className="card flex flex-col gap-3 p-3">
@@ -95,14 +94,14 @@ export function ExportPanel(): React.JSX.Element {
               <p className="text-label text-ink">Everything — backup ZIP (Imager format)</p>
               <p className="text-caption text-muted">
                 Imager's own format: a manifest with your settings, runs and chats, plus every
-                image. This is the file to keep if you want to rebuild the library later.
+                image and every song with its song chat. This is the file to keep if you want to
+                rebuild the library later.
               </p>
               <p className="text-caption text-muted">{backupSize}</p>
               <p className="text-caption text-muted">{KEY_OMITTED_NOTE}</p>
               {/* The ServerStore credential is the SECOND secret the allow-list
                   drops (docs/17 row 42), and it is stated where the first is. */}
               <p className="text-caption text-muted">{STORE_KEY_OMITTED_NOTE}</p>
-              <p className="text-caption text-muted">{SONGS_NOT_INCLUDED_NOTE}</p>
             </div>
             <SaveButton label="Save backup ZIP" buildRequest={() => archiveRequest('backup')} />
           </div>
