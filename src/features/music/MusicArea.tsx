@@ -2,7 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 
 import { EmptyState, SaveButton } from '@/components/ui';
 import { buttonClass, focusRing } from '@/components/styles';
-import { getMusicSession, getSong, listMusicSessions } from '@/db/musicRepo';
+import {
+  deleteMusicSession,
+  deleteSong,
+  getMusicSession,
+  getSong,
+  listMusicSessions,
+} from '@/db/musicRepo';
 import {
   EMPTY_SONG_SHEET,
   isBlankSheet,
@@ -24,8 +30,11 @@ function formatCost(usd: number | null): string {
   return usd === null ? 'not reported' : `$${usd.toFixed(4)}`;
 }
 
-/** The player, the download, and what the model sang. */
-function SongPlayer({ song }: Readonly<{ song: StoredSong }>): React.JSX.Element {
+/** The player, the download, the delete, and what the model sang. */
+function SongPlayer({
+  song,
+  onDeleted,
+}: Readonly<{ song: StoredSong; onDeleted: () => void }>): React.JSX.Element {
   const url = useObjectUrl(song.bytes, song.mimeType);
   return (
     <div className="mt-2 flex flex-col gap-2">
@@ -43,6 +52,17 @@ function SongPlayer({ song }: Readonly<{ song: StoredSong }>): React.JSX.Element
             buildBytes: () => song.bytes,
           })}
         />
+        <button
+          type="button"
+          className={buttonClass('danger')}
+          onClick={() => {
+            deleteSong(song.id).then(onDeleted, (error: unknown) => {
+              toastError('Could not delete the take', error);
+            });
+          }}
+        >
+          Delete take
+        </button>
         <span className="font-mono text-caption text-muted">{song.model}</span>
         <span className="text-caption text-muted">render {formatCost(song.costUsd)}</span>
       </div>
@@ -86,7 +106,14 @@ function SongById({ id }: Readonly<{ id: string }>): React.JSX.Element {
       </p>
     );
   }
-  return <SongPlayer song={song} />;
+  return (
+    <SongPlayer
+      song={song}
+      onDeleted={() => {
+        setSong(null);
+      }}
+    />
+  );
 }
 
 function MusicMessageRow({ message }: Readonly<{ message: MusicMessage }>): React.JSX.Element {
@@ -229,6 +256,8 @@ export function MusicArea(): React.JSX.Element {
   const [listOpen, setListOpen] = useState(false);
   const [version, setVersion] = useState(0);
   const [loadError, setLoadError] = useState<Error | null>(null);
+  // The song whose delete is awaiting confirmation; switching songs drops it.
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const wide = useMinWidth(WIDE_QUERY);
@@ -301,6 +330,25 @@ export function MusicArea(): React.JSX.Element {
   const sendReason = sendBlockReason(state, draft);
   const renderReason = renderSheetBlockReason(state, sheet);
 
+  const startNewSong = (): void => {
+    setOpenId(null);
+    setOpen(null);
+    setSheet(EMPTY_SONG_SHEET);
+    setDraft('');
+  };
+
+  const deleteOpenSong = (id: string): void => {
+    deleteMusicSession(id).then(
+      () => {
+        startNewSong();
+        setVersion((v) => v + 1);
+      },
+      (deleteFailure: unknown) => {
+        toastError('Could not delete the song', deleteFailure);
+      },
+    );
+  };
+
   const run = (action: 'message' | 'render'): void => {
     const text = action === 'message' ? draft.trim() : '';
     const controller = new AbortController();
@@ -357,12 +405,7 @@ export function MusicArea(): React.JSX.Element {
               type="button"
               className={buttonClass('secondary')}
               disabled={busy}
-              onClick={() => {
-                setOpenId(null);
-                setOpen(null);
-                setSheet(EMPTY_SONG_SHEET);
-                setDraft('');
-              }}
+              onClick={startNewSong}
             >
               New song
             </button>
@@ -429,9 +472,46 @@ export function MusicArea(): React.JSX.Element {
           >
             Songs
           </button>
-          <h2 className="min-w-0 truncate text-heading text-ink">
+          <h2 className="min-w-0 flex-1 truncate text-heading text-ink">
             {open === null ? 'New song' : open.title}
           </h2>
+          {open !== null &&
+            (confirmDeleteId === open.id ? (
+              <div role="group" aria-label="Confirm delete" className="flex flex-wrap items-center gap-2">
+                <span className="text-caption text-ink">
+                  Delete this song, its chat and all its takes?
+                </span>
+                <button
+                  type="button"
+                  className={buttonClass('danger')}
+                  onClick={() => {
+                    deleteOpenSong(open.id);
+                  }}
+                >
+                  Yes, delete
+                </button>
+                <button
+                  type="button"
+                  className={buttonClass('secondary')}
+                  onClick={() => {
+                    setConfirmDeleteId(null);
+                  }}
+                >
+                  Keep it
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className={buttonClass('danger')}
+                disabled={busy}
+                onClick={() => {
+                  setConfirmDeleteId(open.id);
+                }}
+              >
+                Delete song
+              </button>
+            ))}
         </div>
 
         <ol className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1">

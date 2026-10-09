@@ -324,3 +324,41 @@ it('Settings lists audio-out models for music and structured text models for the
     expect.stringContaining(WRITER_MODEL),
   ]);
 });
+
+it('"Delete take" removes ONE take and keeps the chat; "Delete song" removes the chat and every take after a confirm', async () => {
+  await configure();
+  writerAnswers.push(writes('Started a synthwave song about a night drive.', NIGHT_DRIVE));
+  renderAnswers.push(song(), song());
+  render(<App initialTab="Music" />);
+  const user = userEvent.setup();
+  await direct(user, 'A nostalgic synthwave song about driving at night');
+  await screen.findByLabelText('Play Night Drive');
+  await user.click(within(sheetPanel()).getByRole('button', { name: 'Render' }));
+  await waitFor(() => {
+    expect(screen.getAllByLabelText('Play Night Drive')).toHaveLength(2);
+  });
+  expect(await db.songs.count()).toBe(2);
+
+  // One take: gone from the store, SHOWN as gone in its turn, the chat stays.
+  const [firstDelete] = screen.getAllByRole('button', { name: 'Delete take' });
+  if (firstDelete === undefined) throw new Error('no delete button');
+  await user.click(firstDelete);
+  expect(await screen.findByText('The song of this turn is no longer stored.')).toBeInTheDocument();
+  expect(await db.songs.count()).toBe(1);
+  expect(await db.musicSessions.count()).toBe(1);
+
+  // The whole song asks first; "Keep it" deletes nothing.
+  const song_ = screen.getByRole('region', { name: 'Song' });
+  await user.click(within(song_).getByRole('button', { name: 'Delete song' }));
+  await user.click(within(song_).getByRole('button', { name: 'Keep it' }));
+  expect(await db.musicSessions.count()).toBe(1);
+
+  await user.click(within(song_).getByRole('button', { name: 'Delete song' }));
+  await user.click(within(song_).getByRole('button', { name: 'Yes, delete' }));
+  await waitFor(async () => {
+    expect(await db.musicSessions.count()).toBe(0);
+  });
+  expect(await db.songs.count()).toBe(0);
+  expect(await screen.findByText('No songs yet — describe one to start.')).toBeInTheDocument();
+  expect(within(song_).getByRole('heading', { name: 'New song' })).toBeInTheDocument();
+});

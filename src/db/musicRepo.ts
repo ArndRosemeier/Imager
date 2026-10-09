@@ -53,3 +53,22 @@ export async function saveMusicTurn(session: MusicSession, song: StoredSong | nu
     await db.musicSessions.put(musicSessionSchema.parse(session));
   });
 }
+
+/**
+ * Delete ONE take. The turn that rendered it stays in its song chat and shows
+ * the take as no longer stored (the same as an image deleted from the gallery).
+ */
+export async function deleteSong(id: string): Promise<void> {
+  await db.songs.delete(id);
+}
+
+/**
+ * Delete a whole song: its chat AND every take rendered in it, in ONE
+ * transaction — no take is left behind without the chat that made it.
+ */
+export async function deleteMusicSession(id: string): Promise<void> {
+  await db.transaction('rw', db.musicSessions, db.songs, async () => {
+    await db.songs.where('sessionId').equals(id).delete();
+    await db.musicSessions.delete(id);
+  });
+}
