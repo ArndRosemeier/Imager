@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 
 import { buttonClass } from '@/components/styles';
 import { getImage, saveUploadedImage } from '@/db/imageRepo';
-import type { Run, StoredImage } from '@/domain/image';
+import type { StoredImage } from '@/domain/image';
 import { RunStatus } from '@/features/generate/RunStatus';
+import { useLastRun } from '@/features/generate/useLastRun';
 import { runGeneration } from '@/features/generate/runGeneration';
 import { refineBlockReason, useImagePanel } from '@/features/generate/useImagePanel';
 import { IMAGE_ACCEPT } from '@/features/refine/reference';
@@ -51,7 +52,7 @@ export function RefinePanel({
   const [uploading, setUploading] = useState(false);
   const [instruction, setInstruction] = useState('');
   const [busy, setBusy] = useState(false);
-  const [lastRun, setLastRun] = useState<Run | null>(null);
+  const [lastRun, setLastRun] = useLastRun('refine');
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {

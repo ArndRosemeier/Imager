@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 
 import { buttonClass } from '@/components/styles';
-import type { Run } from '@/domain/image';
 import { blockReason, useImagePanel } from '@/features/generate/useImagePanel';
 import { runGeneration } from '@/features/generate/runGeneration';
 import { RunStatus } from '@/features/generate/RunStatus';
+import { useLastRun } from '@/features/generate/useLastRun';
 import { errorMessage } from '@/lib/errors';
 import { toastError } from '@/lib/toast';
 
@@ -18,7 +18,7 @@ export function GeneratePanel(): React.JSX.Element {
   const [count, setCount] = useState(1);
   const [aspect, setAspect] = useState('');
   const [busy, setBusy] = useState(false);
-  const [lastRun, setLastRun] = useState<Run | null>(null);
+  const [lastRun, setLastRun] = useLastRun('generate');
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {

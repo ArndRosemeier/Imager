@@ -127,6 +127,25 @@ export async function getRun(id: string): Promise<Run | undefined> {
   return row === undefined ? undefined : parseRun(row);
 }
 
+/**
+ * The newest run of `kind` that stored at least one image — what the Generate
+ * tab shows as "latest result" when it mounts (docs/17 row 55). A failed or
+ * empty run produced nothing to show, so it is skipped rather than displayed
+ * as a stale failure from an earlier visit.
+ */
+export async function getLatestImageRun(kind: Run['kind']): Promise<Run | undefined> {
+  for (const row of await db.runs.orderBy('createdAt').reverse().toArray()) {
+    const run = parseRun(row);
+    if (run.kind === kind && run.receivedCount > 0) return run;
+  }
+  return undefined;
+}
+
+/** The images a run stored that are still in the library (some may be deleted). */
+export async function listRunImages(runId: string): Promise<StoredImage[]> {
+  return (await db.images.where('runId').equals(runId).toArray()).map(parseImage);
+}
+
 export async function getImage(id: string): Promise<StoredImage | undefined> {
   const row = await db.images.get(id);
   return row === undefined ? undefined : parseImage(row);
