@@ -88,6 +88,7 @@ const SOURCE: ExportSource = {
   songs: [],
   musicSessions: [],
   videos: [],
+  clips: [],
   settings: ARCHIVE_SETTINGS,
 };
 
@@ -182,7 +183,7 @@ it('imports a backup through the UI: preview, choices, confirm, result and toast
   expect(within(result).getByText('Imported')).toBeInTheDocument();
   expect(
     within(result).getByText(
-      'images: 2 added, 0 replaced, 0 skipped · runs: 1 added, 0 replaced, 0 skipped · conversations: 1 added, 0 replaced, 0 skipped · songs: 0 added, 0 replaced, 0 skipped · song chats: 0 added, 0 replaced, 0 skipped · videos: 0 added, 0 replaced, 0 skipped · settings applied',
+      'images: 2 added, 0 replaced, 0 skipped · runs: 1 added, 0 replaced, 0 skipped · conversations: 1 added, 0 replaced, 0 skipped · songs: 0 added, 0 replaced, 0 skipped · song chats: 0 added, 0 replaced, 0 skipped · videos: 0 added, 0 replaced, 0 skipped · clips: 0 added, 0 replaced, 0 skipped · settings applied',
     ),
   ).toBeInTheDocument();
   // The same summary reaches the toast (the notice and the screen cannot drift).
@@ -212,7 +213,7 @@ it('"Keep both" through the UI leaves an existing picture untouched and skips it
   const result = await screen.findByLabelText('Import result');
   expect(
     within(result).getByText(
-      'images: 1 added, 0 replaced, 1 skipped · runs: 1 added, 0 replaced, 0 skipped · conversations: 1 added, 0 replaced, 0 skipped · songs: 0 added, 0 replaced, 0 skipped · song chats: 0 added, 0 replaced, 0 skipped · videos: 0 added, 0 replaced, 0 skipped · settings applied',
+      'images: 1 added, 0 replaced, 1 skipped · runs: 1 added, 0 replaced, 0 skipped · conversations: 1 added, 0 replaced, 0 skipped · songs: 0 added, 0 replaced, 0 skipped · song chats: 0 added, 0 replaced, 0 skipped · videos: 0 added, 0 replaced, 0 skipped · clips: 0 added, 0 replaced, 0 skipped · settings applied',
     ),
   ).toBeInTheDocument();
   expect(Array.from((await db.images.get('panel-a'))?.bytes ?? new Uint8Array())).toEqual([
@@ -233,7 +234,7 @@ it('"Replace existing" through the UI takes the file version', async () => {
   const result = await screen.findByLabelText('Import result');
   expect(
     within(result).getByText(
-      'images: 1 added, 1 replaced, 0 skipped · runs: 1 added, 0 replaced, 0 skipped · conversations: 1 added, 0 replaced, 0 skipped · songs: 0 added, 0 replaced, 0 skipped · song chats: 0 added, 0 replaced, 0 skipped · videos: 0 added, 0 replaced, 0 skipped · settings applied',
+      'images: 1 added, 1 replaced, 0 skipped · runs: 1 added, 0 replaced, 0 skipped · conversations: 1 added, 0 replaced, 0 skipped · songs: 0 added, 0 replaced, 0 skipped · song chats: 0 added, 0 replaced, 0 skipped · videos: 0 added, 0 replaced, 0 skipped · clips: 0 added, 0 replaced, 0 skipped · settings applied',
     ),
   ).toBeInTheDocument();
   expect(Array.from((await db.images.get('panel-a'))?.bytes ?? new Uint8Array())).toEqual([1, 2, 3]);

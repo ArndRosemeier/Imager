@@ -47,6 +47,7 @@ const source: ExportSource = {
   songs: [],
   musicSessions: [],
   videos: [],
+  clips: [],
   settings,
 };
 
@@ -80,7 +81,9 @@ it('COS: the sentinel key is nowhere in the backup archive (manifest, entries, r
     'musicModel',
     'refineChatModel',
     'songWriterModel',
+    'soundModel',
     'videoModel',
+    'voiceModel',
   ]);
 });
 

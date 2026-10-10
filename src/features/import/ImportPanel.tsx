@@ -69,9 +69,10 @@ function conflictLine(conflict: ConflictChoice, preview: ImportPreview): string 
     preview.songs,
     preview.musicSessions,
     preview.videos,
+    preview.clips,
   ];
   const existing = plans.reduce((total, plan) => total + plan.existing, 0);
-  const adds = `Adds ${preview.images.fresh.toString()} new images, ${preview.runs.fresh.toString()} runs, ${preview.conversations.fresh.toString()} conversations, ${preview.songs.fresh.toString()} songs, ${preview.musicSessions.fresh.toString()} song chats and ${preview.videos.fresh.toString()} videos`;
+  const adds = `Adds ${preview.images.fresh.toString()} new images, ${preview.runs.fresh.toString()} runs, ${preview.conversations.fresh.toString()} conversations, ${preview.songs.fresh.toString()} songs, ${preview.musicSessions.fresh.toString()} song chats, ${preview.videos.fresh.toString()} videos and ${preview.clips.fresh.toString()} sound and voice clips`;
   return conflict === 'Keep both'
     ? `${adds}; leaves the ${existing.toString()} rows you already have exactly as they are.`
     : `${adds}; overwrites the ${existing.toString()} rows you already have with the file's version.`;
@@ -184,11 +185,16 @@ export function ImportPanel({
               </p>
               <p className="text-caption text-muted">{planLine('Videos', loaded.preview.videos)}</p>
               <p className="text-caption text-muted">
+                {planLine('Sound and voice clips', loaded.preview.clips)}
+              </p>
+              <p className="text-caption text-muted">
                 Settings in the file: image model {loaded.preview.settings.imageModel || '(none)'},
                 refinement model {loaded.preview.settings.refineChatModel || '(none)'}, music model{' '}
                 {optionalPickLabel(loaded.preview.settings.musicModel)}, song-writer model{' '}
                 {optionalPickLabel(loaded.preview.settings.songWriterModel)}, video model{' '}
-                {optionalPickLabel(loaded.preview.settings.videoModel)}.
+                {optionalPickLabel(loaded.preview.settings.videoModel)}, sound model{' '}
+                {optionalPickLabel(loaded.preview.settings.soundModel)}, voice model{' '}
+                {optionalPickLabel(loaded.preview.settings.voiceModel)}.
               </p>
               {loaded.preview.danglingImageIds.length > 0 && (
                 <p className="text-caption text-muted">

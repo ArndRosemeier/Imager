@@ -29,6 +29,12 @@ export const settingsSchema = z.strictObject({
    * with. `.default('')` for the same reason as the music picks.
    */
   videoModel: z.string().default(''),
+  /**
+   * The Sounds and Voice tabs' picks (docs/17 row 60): the speech model each
+   * tab renders its clips with. `.default('')` for the same reason as above.
+   */
+  soundModel: z.string().default(''),
+  voiceModel: z.string().default(''),
   /** The ServerStore HTTP origin, e.g. `https://store.futuremagic.de`. */
   serverStoreBaseUrl: z.string().default(''),
   /** The store objects live in. Fixed by the dispatcher's object model: `imager`. */
@@ -58,6 +64,8 @@ export const DEFAULT_SETTINGS: Settings = {
   musicModel: '',
   songWriterModel: '',
   videoModel: '',
+  soundModel: '',
+  voiceModel: '',
   serverStoreBaseUrl: 'https://store.futuremagic.de',
   serverStoreName: 'imager',
   serverStoreKey: '',

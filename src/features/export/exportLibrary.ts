@@ -32,6 +32,7 @@ import { listConversations } from '@/db/chatRepo';
 import { listImages, listRuns } from '@/db/imageRepo';
 import { listMusicSessions, listSongs } from '@/db/musicRepo';
 import { listVideos } from '@/db/videoRepo';
+import { listClips } from '@/db/clipRepo';
 import { getSettings } from '@/db/settingsRepo';
 import { conversationSchema, type Conversation } from '@/domain/chat';
 import {
@@ -49,6 +50,7 @@ import {
 } from '@/domain/music';
 import type { Settings } from '@/domain/settings';
 import { videoRequestSchema, type StoredVideo } from '@/domain/video';
+import { CLIP_KINDS, clipRequestSchema, type StoredClip } from '@/domain/clip';
 import { audioExtensionFor } from '@/lib/audioFormat';
 import { videoExtensionFor } from '@/lib/videoFormat';
 import { sha256Hex } from '@/lib/sha256';
@@ -80,6 +82,9 @@ export const INTERNAL_SONG_DIR = 'songs';
 
 /** The directory the raw video bytes live under (docs/17 row 56). */
 export const INTERNAL_VIDEO_DIR = 'videos';
+
+/** The directory the raw clip bytes (sounds and voice) live under (docs/17 row 60). */
+export const INTERNAL_CLIP_DIR = 'clips';
 
 /** The ONE archive MIME type (both modes are ZIPs). */
 export const ARCHIVE_MIME_TYPE = 'application/zip';
@@ -202,6 +207,11 @@ export function internalVideoPath(video: StoredVideo): string {
   )}`;
 }
 
+/** The path of one clip inside the INTERNAL format, keyed by id (docs/17 row 60). */
+export function internalClipPath(clip: StoredClip): string {
+  return `${INTERNAL_CLIP_DIR}/${sanitizeFileName(clip.id, 'clip')}.${audioExtensionFor(clip.mimeType)}`;
+}
+
 /** `2026-09-26T08:10:11.123Z` → `2026-09-26T08-10-11-123Z` (no `:` or `.` on
  * Windows, and one unambiguous `.zip` at the end). */
 function isoFileStamp(now: Date): string {
@@ -241,6 +251,9 @@ export const exportedSettingsSchema = z.strictObject({
   songWriterModel: z.string().optional(),
   /** The Videos tab's pick (docs/17 row 56); optional for the same reason. */
   videoModel: z.string().optional(),
+  /** The Sounds and Voice tabs' picks (docs/17 row 60); optional likewise. */
+  soundModel: z.string().optional(),
+  voiceModel: z.string().optional(),
 });
 
 /**
@@ -327,6 +340,25 @@ export const exportManifestVideoSchema = z.strictObject({
 export type ExportManifestVideo = z.infer<typeof exportManifestVideoSchema>;
 
 /**
+ * One clip's metadata inside the manifest (docs/17 row 60): the stored row
+ * minus its bytes, plus its archive entry and the same integrity pair.
+ */
+export const exportManifestClipSchema = z.strictObject({
+  id: z.string().min(1),
+  kind: z.enum(CLIP_KINDS),
+  /** The ZIP entry path holding this clip's raw bytes. */
+  fileName: z.string().min(1),
+  mimeType: z.string().min(1),
+  request: clipRequestSchema,
+  generationId: z.string().nullable(),
+  createdAt: z.number(),
+  tags: z.array(z.string()),
+  byteLength: z.number().int().nonnegative(),
+  sha256: z.string().regex(/^[0-9a-f]{64}$/),
+});
+export type ExportManifestClip = z.infer<typeof exportManifestClipSchema>;
+
+/**
  * THE internal format (version 1). Zod at the boundary in BOTH directions: the
  * builder validates what it writes, so a malformed manifest cannot be produced,
  * and an import has a schema to read with. `strictObject` is load-bearing — it
@@ -351,6 +383,8 @@ export const exportManifestSchema = z.strictObject({
     songs: z.string().min(1).optional(),
     /** Where video bytes live; absent in an archive written before videos. */
     videos: z.string().min(1).optional(),
+    /** Where clip bytes live; absent in an archive written before clips. */
+    clips: z.string().min(1).optional(),
   }),
   /** What is deliberately NOT in the file, and why. */
   secretExcluded: z.strictObject({
@@ -380,6 +414,11 @@ export const exportManifestSchema = z.strictObject({
    * work on a server, not the owner's data, and they expire there.
    */
   videos: z.array(exportManifestVideoSchema).default([]),
+  /**
+   * The Sounds and Voice tabs (docs/17 row 60): one entry per clip, each naming
+   * its own bytes. `.default([])`: a pre-clips archive imports as "no clips".
+   */
+  clips: z.array(exportManifestClipSchema).default([]),
 });
 export type ExportManifest = z.infer<typeof exportManifestSchema>;
 
@@ -391,6 +430,7 @@ export interface ExportSource {
   songs: readonly StoredSong[];
   musicSessions: readonly MusicSession[];
   videos: readonly StoredVideo[];
+  clips: readonly StoredClip[];
   settings: Settings;
 }
 
@@ -457,6 +497,20 @@ export async function buildManifest(
       sha256: await sha256Hex(video.bytes),
     })),
   );
+  const clips = await Promise.all(
+    source.clips.map(async (clip) => ({
+      id: clip.id,
+      kind: clip.kind,
+      fileName: internalClipPath(clip),
+      mimeType: clip.mimeType,
+      request: clip.request,
+      generationId: clip.generationId,
+      createdAt: clip.createdAt,
+      tags: clip.tags,
+      byteLength: clip.bytes.length,
+      sha256: await sha256Hex(clip.bytes),
+    })),
+  );
   return exportManifestSchema.parse({
     format: EXPORT_FORMAT,
     version: EXPORT_FORMAT_VERSION,
@@ -465,8 +519,9 @@ export async function buildManifest(
     description:
       'Imager library backup — an internal, self-describing format. ' +
       `${MANIFEST_ENTRY} (this file) names every row; image bytes are stored raw ` +
-      `under ${INTERNAL_IMAGE_DIR}/, song bytes under ${INTERNAL_SONG_DIR}/ and video bytes ` +
-      `under ${INTERNAL_VIDEO_DIR}/. Every image, song and video carries its byte length and SHA-256, ` +
+      `under ${INTERNAL_IMAGE_DIR}/, song bytes under ${INTERNAL_SONG_DIR}/, video bytes ` +
+      `under ${INTERNAL_VIDEO_DIR}/ and sound and voice clips under ${INTERNAL_CLIP_DIR}/. ` +
+      'Every image, song, video and clip carries its byte length and SHA-256, ' +
       'so a reader can verify what it read. No OpenRouter API key is included.',
     layout: {
       manifest: MANIFEST_ENTRY,
@@ -475,6 +530,7 @@ export async function buildManifest(
         'raw image bytes (never base64) — each images[].fileName above is the archive-relative path',
       songs: `${INTERNAL_SONG_DIR}/<id>.<ext> — raw audio bytes; each songs[].fileName is the archive-relative path`,
       videos: `${INTERNAL_VIDEO_DIR}/<id>.<ext> — raw video bytes; each videos[].fileName is the archive-relative path`,
+      clips: `${INTERNAL_CLIP_DIR}/<id>.<ext> — raw audio bytes of sounds and voice clips; each clips[].fileName is the archive-relative path`,
     },
     secretExcluded: {
       fields: ['settings.openRouterApiKey', 'settings.serverStoreKey'],
@@ -486,6 +542,8 @@ export async function buildManifest(
       musicModel: source.settings.musicModel,
       songWriterModel: source.settings.songWriterModel,
       videoModel: source.settings.videoModel,
+      soundModel: source.settings.soundModel,
+      voiceModel: source.settings.voiceModel,
     },
     images,
     runs: source.runs,
@@ -493,6 +551,7 @@ export async function buildManifest(
     songs,
     musicSessions: source.musicSessions,
     videos,
+    clips,
   });
 }
 
@@ -566,6 +625,7 @@ export async function buildBackupArchive(source: ExportSource, now: Date): Promi
     ...source.images.map((image) => ({ path: internalImagePath(image), bytes: image.bytes })),
     ...source.songs.map((song) => ({ path: internalSongPath(song), bytes: song.bytes })),
     ...source.videos.map((video) => ({ path: internalVideoPath(video), bytes: video.bytes })),
+    ...source.clips.map((clip) => ({ path: internalClipPath(clip), bytes: clip.bytes })),
   ];
   for (const { path, bytes } of entries) {
     if (files[path] !== undefined) {
@@ -586,16 +646,18 @@ export async function buildBackupArchive(source: ExportSource, now: Date): Promi
 
 /** Every row the backup carries, in the repos' own (validated) order. */
 export async function collectExportSource(): Promise<ExportSource> {
-  const [images, runs, conversations, songs, musicSessions, videos, settings] = await Promise.all([
-    listImages(),
-    listRuns(),
-    listConversations(),
-    listSongs(),
-    listMusicSessions(),
-    listVideos(),
-    getSettings(),
-  ]);
-  return { images, runs, conversations, songs, musicSessions, videos, settings };
+  const [images, runs, conversations, songs, musicSessions, videos, clips, settings] =
+    await Promise.all([
+      listImages(),
+      listRuns(),
+      listConversations(),
+      listSongs(),
+      listMusicSessions(),
+      listVideos(),
+      listClips(),
+      getSettings(),
+    ]);
+  return { images, runs, conversations, songs, musicSessions, videos, clips, settings };
 }
 
 /** What the library holds, for the size the owner is shown before saving. */
@@ -612,6 +674,9 @@ export interface LibraryStats {
   videoCount: number;
   /** The stored video bytes in total (docs/17 row 56). */
   videoBytes: number;
+  /** Sounds and voice clips together (docs/17 row 60). */
+  clipCount: number;
+  clipBytes: number;
 }
 
 /**
@@ -620,13 +685,14 @@ export interface LibraryStats {
  * dedicated index would be machinery serving nothing.
  */
 export async function libraryStats(): Promise<LibraryStats> {
-  const [images, runs, conversations, songs, musicSessions, videos] = await Promise.all([
+  const [images, runs, conversations, songs, musicSessions, videos, clips] = await Promise.all([
     listImages(),
     listRuns(),
     listConversations(),
     listSongs(),
     listMusicSessions(),
     listVideos(),
+    listClips(),
   ]);
   return {
     imageCount: images.length,
@@ -638,6 +704,8 @@ export async function libraryStats(): Promise<LibraryStats> {
     musicSessionCount: musicSessions.length,
     videoCount: videos.length,
     videoBytes: videos.reduce((total, video) => total + video.bytes.length, 0),
+    clipCount: clips.length,
+    clipBytes: clips.reduce((total, clip) => total + clip.bytes.length, 0),
   };
 }
 

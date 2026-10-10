@@ -93,6 +93,7 @@ const SOURCE: ExportSource = {
   songs: [SONG],
   musicSessions: [SESSION],
   videos: [],
+  clips: [],
   settings: SETTINGS,
 };
 

@@ -3,7 +3,9 @@ import {
   canGenerateAudio,
   canGenerateImages,
   canRefineViaChat,
+  canSynthesizeSpeech,
   canWriteSongSheet,
+  voicesOf,
   type OpenRouterModel,
 } from '@/llm/models';
 import {
@@ -71,6 +73,8 @@ function badges(model: OpenRouterModel): string[] {
   const out: string[] = [];
   if (canGenerateImages(model)) out.push('image out');
   if (canGenerateAudio(model)) out.push('audio out');
+  if (canSynthesizeSpeech(model)) out.push('speech out');
+  if (voicesOf(model).length > 0) out.push(`${String(voicesOf(model).length)} voices`);
   if (canWriteSongSheet(model)) out.push('structured text');
   if (acceptsImageInput(model)) out.push('image in');
   if (canRefineViaChat(model))

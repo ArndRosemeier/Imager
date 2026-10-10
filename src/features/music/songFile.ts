@@ -1,9 +1,6 @@
 import type { StoredSong } from '@/domain/music';
-import { sanitizeFileName } from '@/features/export/exportLibrary';
+import { FILE_NAME_ID_STUB_CHARS, sanitizeFileName } from '@/features/export/exportLibrary';
 import { audioExtensionFor } from '@/lib/audioFormat';
-
-/** Characters of the song id appended to a download name, so takes never collide. */
-const FILE_NAME_ID_STUB_CHARS = 8;
 
 /**
  * The owner-facing file name for one song: its title through the ONE

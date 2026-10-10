@@ -23,6 +23,8 @@ const modelSchema = z.looseObject({
   supported_parameters: z.array(z.string()),
   // Prices are USD decimal strings; "-1" marks router models (variable).
   pricing: z.record(z.string(), z.unknown()),
+  /** Speech models list their voices here (docs/17 row 60); absent elsewhere. */
+  supported_voices: z.array(z.string()).nullish(),
 });
 
 export const modelsResponseSchema = z.looseObject({ data: z.array(modelSchema) });
@@ -87,6 +89,21 @@ export function producesTextToo(model: OpenRouterModel): boolean {
  */
 export function canGenerateAudio(model: OpenRouterModel): boolean {
   return model.architecture.output_modalities.includes('audio');
+}
+
+/**
+ * Output includes speech → can render a clip on the speech path
+ * (`src/llm/speech.ts`): the Voice and Sounds tabs (docs/17 row 60). OpenRouter
+ * lists text-to-speech models under their own `speech` output modality, apart
+ * from the chat models with `audio` output.
+ */
+export function canSynthesizeSpeech(model: OpenRouterModel): boolean {
+  return model.architecture.output_modalities.includes('speech');
+}
+
+/** The voices a speech model lists, in its own order; [] when it lists none. */
+export function voicesOf(model: OpenRouterModel): string[] {
+  return model.supported_voices ?? [];
 }
 
 /**

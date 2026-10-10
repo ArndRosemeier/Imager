@@ -54,7 +54,7 @@ export function ExportPanel(): React.JSX.Element {
   const backupSize =
     stats === null
       ? ''
-      : `${stats.runCount} runs · ${stats.conversationCount} conversations · ${imageSize} · ${stats.songCount} songs (≈ ${formatBytes(stats.songBytes)}) in ${stats.musicSessionCount} song chats · ${stats.videoCount} videos (≈ ${formatBytes(stats.videoBytes)}) + manifest`;
+      : `${stats.runCount} runs · ${stats.conversationCount} conversations · ${imageSize} · ${stats.songCount} songs (≈ ${formatBytes(stats.songBytes)}) in ${stats.musicSessionCount} song chats · ${stats.videoCount} videos (≈ ${formatBytes(stats.videoBytes)}) · ${stats.clipCount} sound and voice clips (≈ ${formatBytes(stats.clipBytes)}) + manifest`;
 
   return (
     <section aria-label="Save your work" className="card flex flex-col gap-3 p-3">
@@ -94,7 +94,7 @@ export function ExportPanel(): React.JSX.Element {
               <p className="text-label text-ink">Everything — backup ZIP (Imager format)</p>
               <p className="text-caption text-muted">
                 Imager's own format: a manifest with your settings, runs and chats, plus every
-                image, every song with its song chat, and every finished video. This is the file to keep if you want to
+                image, every song with its song chat, every finished video, and every sound and voice clip. This is the file to keep if you want to
                 rebuild the library later.
               </p>
               <p className="text-caption text-muted">{backupSize}</p>

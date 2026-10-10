@@ -30,8 +30,8 @@ export function TagBar({
   onToggle: (tag: string) => void;
   onModeChange: (mode: TagMatchMode) => void;
   onClear: () => void;
-  /** What the counts count ("image" or "video"), for the accessible names. */
-  noun?: 'image' | 'video';
+  /** What the counts count ("image", "video", "sound" or "voice clip"), for the accessible names. */
+  noun?: 'image' | 'video' | 'sound' | 'voice clip';
 }>): React.JSX.Element {
   return (
     <div className="flex min-w-0 flex-col gap-1">

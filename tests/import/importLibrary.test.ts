@@ -124,6 +124,7 @@ const SOURCE: ExportSource = {
   songs: [],
   musicSessions: [],
   videos: [],
+  clips: [],
   settings: SETTINGS,
 };
 
@@ -187,6 +188,8 @@ it('ROUND TRIP: a good archive rebuilds every row, byte-identical, with its ids'
     musicModel: SETTINGS.musicModel,
     songWriterModel: SETTINGS.songWriterModel,
     videoModel: SETTINGS.videoModel,
+    soundModel: SETTINGS.soundModel,
+    voiceModel: SETTINGS.voiceModel,
   });
   expect(preview.images).toEqual({ incoming: 2, fresh: 2, existing: 0 });
   expect(preview.runs).toEqual({ incoming: 1, fresh: 1, existing: 0 });
@@ -203,6 +206,7 @@ it('ROUND TRIP: a good archive rebuilds every row, byte-identical, with its ids'
     songs: { added: 0, replaced: 0, skipped: 0 },
     musicSessions: { added: 0, replaced: 0, skipped: 0 },
     videos: { added: 0, replaced: 0, skipped: 0 },
+    clips: { added: 0, replaced: 0, skipped: 0 },
     settingsApplied: true,
     danglingImageIds: [],
     danglingSongIds: [],

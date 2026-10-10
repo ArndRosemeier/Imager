@@ -41,6 +41,7 @@ const SOURCE: ExportSource = {
   songs: [],
   musicSessions: [],
   videos: [],
+  clips: [],
   settings: {
     ...DEFAULT_SETTINGS,
     openRouterApiKey: 'IGNORED-NEVER-EXPORTED',

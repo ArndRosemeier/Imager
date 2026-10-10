@@ -5,6 +5,7 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import { focusRing } from '@/components/styles';
 import type { ChatAttachRequest } from '@/features/chat/attachRequest';
 import { ChatArea } from '@/features/chat/ChatArea';
+import { ClipsArea } from '@/features/clips/ClipsArea';
 import { GenerateArea } from '@/features/generate/GenerateArea';
 import type { Mode } from '@/features/generate/mode';
 import { Gallery } from '@/features/gallery/Gallery';
@@ -18,12 +19,22 @@ import { useTheme } from '@/lib/theme';
 /**
  * The primary tabs ARE the app's navigation (no router). The order reads as the
  * working pipeline: you make an image (Generate), you look at what you made
- * (Gallery), you talk it further (Chat). Music and Videos are the sibling media,
- * after the image pipeline (docs/17 rows 52 and 56). Store is where images are shared with other
+ * (Gallery), you talk it further (Chat). Music, Videos, Sounds and Voice are the
+ * sibling media, after the image pipeline (docs/17 rows 52, 56 and 60). Store is where images are shared with other
  * keys, and Settings is the configuration surface rather than a step in that
  * flow, so it stays last (docs/17 rows 30 and 38).
  */
-const TABS = ['Generate', 'Gallery', 'Chat', 'Music', 'Videos', 'Store', 'Settings'] as const;
+const TABS = [
+  'Generate',
+  'Gallery',
+  'Chat',
+  'Music',
+  'Videos',
+  'Sounds',
+  'Voice',
+  'Store',
+  'Settings',
+] as const;
 type Tab = (typeof TABS)[number];
 
 /** The primary tabs are the app's whole navigation (no router). */
@@ -104,7 +115,7 @@ export function App({ initialTab = 'Generate' }: { initialTab?: Tab }): React.JS
         <div className="flex min-w-0 items-baseline gap-2">
           <h1 className="text-title text-ink">Imager</h1>
           <p className="hidden text-caption text-muted md:block">
-            images, music and video, local-first
+            images, music, video and voice, local-first
           </p>
         </div>
         <div className="order-2 ml-auto flex items-center gap-2">
@@ -167,6 +178,11 @@ export function App({ initialTab = 'Generate' }: { initialTab?: Tab }): React.JS
       ) : tab === 'Videos' ? (
         <main className="w-full flex-1 px-3 py-3 sm:px-4">
           <VideosArea />
+        </main>
+      ) : tab === 'Sounds' || tab === 'Voice' ? (
+        <main className="w-full flex-1 px-3 py-3 sm:px-4">
+          {/* Keyed by the tab: the two are one component, and must not share state. */}
+          <ClipsArea key={tab} kind={tab === 'Sounds' ? 'sound' : 'voice'} />
         </main>
       ) : tab === 'Store' ? (
         <main className="w-full flex-1 px-3 py-3 sm:px-4">

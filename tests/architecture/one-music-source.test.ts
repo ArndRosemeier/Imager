@@ -26,7 +26,11 @@ it('ONE reader of the owner’s music direction: the song writer, called from th
 
 it('ONE audio-format decision: bytes are typed by their signature in one module', () => {
   expect(filesContaining('function sniffAudioFormat')).toEqual(['src/lib/audioFormat.ts']);
-  expect(filesContaining('sniffAudioFormat(')).toEqual(['src/lib/audioFormat.ts', 'src/llm/music.ts']);
+  expect(filesContaining('sniffAudioFormat(')).toEqual([
+    'src/lib/audioFormat.ts',
+    'src/llm/music.ts',
+    'src/llm/speech.ts',
+  ]);
 });
 
 it('ONE place a song request body is built: audio output lives in the music seam', () => {

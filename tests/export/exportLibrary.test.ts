@@ -156,6 +156,7 @@ const SOURCE: ExportSource = {
   songs: [],
   musicSessions: [],
   videos: [],
+  clips: [],
   settings: SETTINGS,
 };
 
@@ -365,7 +366,9 @@ it('a settings field the export does not know about cannot ride along either', a
     'musicModel',
     'refineChatModel',
     'songWriterModel',
+    'soundModel',
     'videoModel',
+    'voiceModel',
   ]);
   expect(JSON.stringify(manifest)).not.toContain('futureSecret');
   // And the strict schema refuses the key if anyone ever ADDS it back.
@@ -399,6 +402,8 @@ it('ROUND TRIP: the archive alone rebuilds every row, and every pointer resolves
     musicModel: SETTINGS.musicModel,
     songWriterModel: SETTINGS.songWriterModel,
     videoModel: SETTINGS.videoModel,
+    soundModel: SETTINGS.soundModel,
+    voiceModel: SETTINGS.voiceModel,
   });
 
   // --- images: field-for-field the stored row, plus the bytes.

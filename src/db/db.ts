@@ -1,6 +1,7 @@
 import Dexie, { type EntityTable } from 'dexie';
 
 import type { Conversation } from '@/domain/chat';
+import type { StoredClip } from '@/domain/clip';
 import type { Run, StoredImage } from '@/domain/image';
 import type { MusicSession, StoredSong } from '@/domain/music';
 import type { Settings } from '@/domain/settings';
@@ -55,6 +56,7 @@ export class ImagerDb extends Dexie {
   musicSessions!: EntityTable<MusicSession, 'id'>;
   videos!: EntityTable<StoredVideo, 'id'>;
   videoJobs!: EntityTable<VideoJob, 'id'>;
+  clips!: EntityTable<StoredClip, 'id'>;
 
   constructor(name = 'imager') {
     super(name);
@@ -122,6 +124,12 @@ export class ImagerDb extends Dexie {
     this.version(10).stores({
       images: 'id, createdAt, runId, *tags',
       videos: 'id, createdAt, *tags',
+    });
+    // v11 (Sounds and Voice tabs, docs/17 row 60): ONE new table for both, the
+    // rendered audio clips (bytes as Uint8Array), told apart by `kind`, with the
+    // same multi-entry `*tags` index so clips share the one tag vocabulary.
+    this.version(11).stores({
+      clips: 'id, createdAt, kind, *tags',
     });
   }
 }

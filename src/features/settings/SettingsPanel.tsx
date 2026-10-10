@@ -12,6 +12,7 @@ import {
   canGenerateAudio,
   canGenerateImages,
   canRefineViaChat,
+  canSynthesizeSpeech,
   canWriteSongSheet,
   listModels,
   type OpenRouterModel,
@@ -113,6 +114,7 @@ export function SettingsPanel(): React.JSX.Element {
   const refineModels = models?.filter(canRefineViaChat) ?? [];
   const musicModels = models?.filter(canGenerateAudio) ?? [];
   const writerModels = models?.filter(canWriteSongSheet) ?? [];
+  const speechModels = models?.filter(canSynthesizeSpeech) ?? [];
 
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-3">
@@ -220,6 +222,24 @@ export function SettingsPanel(): React.JSX.Element {
             selectedId={settings.songWriterModel}
             onSelect={(id) => {
               save({ songWriterModel: id });
+            }}
+          />
+          <ModelPicker
+            label="Sound model"
+            hint="Makes sound effects on the Sounds tab. OpenRouter has no dedicated sound-effects model, so its speech models are listed; ByteDance Seed Audio is the one that describes sound effects."
+            models={speechModels.map(openRouterOption)}
+            selectedId={settings.soundModel}
+            onSelect={(id) => {
+              save({ soundModel: id });
+            }}
+          />
+          <ModelPicker
+            label="Voice model"
+            hint="Speaks your text on the Voice tab. Every OpenRouter speech model is listed; the voices are the ones each model offers."
+            models={speechModels.map(openRouterOption)}
+            selectedId={settings.voiceModel}
+            onSelect={(id) => {
+              save({ voiceModel: id });
             }}
           />
         </>

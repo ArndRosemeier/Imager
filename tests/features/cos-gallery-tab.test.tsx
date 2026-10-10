@@ -42,14 +42,16 @@ it('COS: the grid is on the Gallery tab and ABSENT from the form-only Generate t
   const user = userEvent.setup();
   render(<App />);
 
-  // Seven tabs, in order (Store arrived with docs/17 row 42, Music with row 52,
-  // Videos with row 56).
-  expect(screen.getAllByRole('tab').slice(0, 7).map((t) => t.textContent)).toEqual([
+  // Nine tabs, in order (Store arrived with docs/17 row 42, Music with row 52,
+  // Videos with row 56, Sounds and Voice with row 60).
+  expect(screen.getAllByRole('tab').slice(0, 9).map((t) => t.textContent)).toEqual([
     'Generate',
     'Gallery',
     'Chat',
     'Music',
     'Videos',
+    'Sounds',
+    'Voice',
     'Store',
     'Settings',
   ]);
