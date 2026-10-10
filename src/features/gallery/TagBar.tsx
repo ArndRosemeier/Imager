@@ -19,6 +19,7 @@ export function TagBar({
   onToggle,
   onModeChange,
   onClear,
+  noun = 'image',
 }: Readonly<{
   /** The derived tag list, alphabetical, with per-tag image counts. */
   tags: readonly TagCount[];
@@ -29,6 +30,8 @@ export function TagBar({
   onToggle: (tag: string) => void;
   onModeChange: (mode: TagMatchMode) => void;
   onClear: () => void;
+  /** What the counts count ("image" or "video"), for the accessible names. */
+  noun?: 'image' | 'video';
 }>): React.JSX.Element {
   return (
     <div className="flex min-w-0 flex-col gap-1">
@@ -47,7 +50,7 @@ export function TagBar({
                * lose the cascade to the `chip` utility).
                */
               aria-pressed={active}
-              aria-label={`${tag} (${count} ${count === 1 ? 'image' : 'images'})`}
+              aria-label={`${tag} (${count} ${count === 1 ? noun : `${noun}s`})`}
               className={`chip ${focusRing} ${active ? 'tag-chip-on' : 'hover:seg-item-hover'}`}
               onClick={() => {
                 onToggle(tag);

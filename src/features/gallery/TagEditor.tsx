@@ -32,6 +32,7 @@ export function TagEditor({
   tags,
   suggestions,
   onChange,
+  onPhoto = true,
 }: Readonly<{
   /** The STORED tags of this image, in their canonical form. */
   tags: readonly string[];
@@ -39,6 +40,8 @@ export function TagEditor({
   suggestions: readonly string[];
   /** Performs the write; rejects with the real reason on failure. */
   onChange: (next: string[]) => Promise<void>;
+  /** True over a photo (the lightbox); false on an ordinary card (a video). */
+  onPhoto?: boolean;
 }>): React.JSX.Element {
   const [draft, setDraft] = useState('');
   const [pending, setPending] = useState(false);
@@ -107,7 +110,7 @@ export function TagEditor({
         <button
           type="button"
           disabled={!canAdd || pending}
-          className={buttonClass('invert')}
+          className={buttonClass(onPhoto ? 'invert' : 'secondary')}
           onClick={() => {
             commit([...tags, normalizedDraft]);
           }}

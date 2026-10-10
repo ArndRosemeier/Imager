@@ -85,6 +85,8 @@ export async function checkVideoJob(apiKey: string, job: VideoJob): Promise<Vide
       request: job.request,
       costUsd: state.costUsd,
       createdAt: Date.now(),
+      // A new video is untagged until the owner tags it, like a new image.
+      tags: [],
     });
     return 'completed';
   } catch (error: unknown) {

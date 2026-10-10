@@ -21,7 +21,7 @@ it('the v1 settings row survives the v8 bump (images + runs + conversations + st
   // by the schema's defaults at READ time, never written back by a migration.
   await expect(v7.settings.get(SETTINGS_ID)).resolves.toEqual(row);
   // v8 (docs/17 row 52) added only the music tables, so the v7 claims hold at v8.
-  expect(v7.verno).toBe(9);
+  expect(v7.verno).toBe(10);
   await expect(v7.images.count()).resolves.toBe(0);
   await expect(v7.runs.count()).resolves.toBe(0);
   await expect(v7.conversations.count()).resolves.toBe(0);
@@ -91,7 +91,7 @@ it('v1, v3 and v4 rows survive the v7 store-cache bump untouched', async () => {
 
   const v7 = new ImagerDb(name);
   // v8 (docs/17 row 52) added only the music tables, so the v7 claims hold at v8.
-  expect(v7.verno).toBe(9);
+  expect(v7.verno).toBe(10);
   await expect(v7.settings.get(SETTINGS_ID)).resolves.toEqual(row);
   const image = await v7.images.get('img-1');
   expect(image).toMatchObject({ prompt: 'v3 image', source: 'generated', runId: 'run-1' });

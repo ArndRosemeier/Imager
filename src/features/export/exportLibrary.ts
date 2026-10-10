@@ -319,6 +319,8 @@ export const exportManifestVideoSchema = z.strictObject({
   request: videoRequestSchema,
   costUsd: z.number().nullable(),
   createdAt: z.number(),
+  /** The video's tags (docs/17 row 59); absent in an archive written before. */
+  tags: z.array(z.string()).default([]),
   byteLength: z.number().int().nonnegative(),
   sha256: z.string().regex(/^[0-9a-f]{64}$/),
 });
@@ -450,6 +452,7 @@ export async function buildManifest(
       request: video.request,
       costUsd: video.costUsd,
       createdAt: video.createdAt,
+      tags: video.tags,
       byteLength: video.bytes.length,
       sha256: await sha256Hex(video.bytes),
     })),

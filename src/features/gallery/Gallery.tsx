@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { EmptyState, CopyButton, FavoriteButton, SaveButton, Segmented } from '@/components/ui';
 import { buttonClass } from '@/components/styles';
 import { deleteImage, getRun, listImages, setImageFavorite, setImageTags } from '@/db/imageRepo';
+import { listTagsInUse } from '@/db/tagRepo';
 import { type Run, type StoredImage } from '@/domain/image';
 import { filterImages, tagCounts, type TagMatchMode } from '@/domain/tags';
 import { imageFileName } from '@/features/export/exportLibrary';
@@ -282,8 +283,13 @@ export function Gallery({
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [matchMode, setMatchMode] = useState<TagMatchMode>('AND');
   const [size, setSize] = useGallerySize();
+  /** Every tag in use on images AND videos — the editor's suggestions (docs/17 row 59). */
+  const [tagsInUse, setTagsInUse] = useState<string[]>([]);
   useEffect(() => {
     listImages().then(setImages, (error: unknown) => {
+      setLoadError(toError(error));
+    });
+    listTagsInUse().then(setTagsInUse, (error: unknown) => {
       setLoadError(toError(error));
     });
   }, [localVersion]);
@@ -313,7 +319,9 @@ export function Gallery({
   // The bar's list is DERIVED from the rows above — never stored, never a
   // second source of truth (docs/17 row 34).
   const tagList = tagCounts(images);
-  const allTags = tagList.map((entry) => entry.tag);
+  // The editor suggests the ONE shared vocabulary: tags on images AND videos
+  // (re-read with the rows, so a just-added tag is in it).
+  const allTags = tagsInUse;
   // The ONE ordering seam's order, filtered — `filterImages` preserves the input
   // order, so favourites still lead and newest-first still holds inside a group.
   const visible = filterImages(images, selectedTags, matchMode);

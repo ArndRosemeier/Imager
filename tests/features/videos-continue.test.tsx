@@ -40,6 +40,7 @@ const VIDEO: StoredVideo = {
   },
   costUsd: 1,
   createdAt: 1,
+  tags: [],
 };
 
 beforeEach(async () => {

@@ -24,6 +24,11 @@ const SRC = sourceFiles('src');
 const definers = (signature: string): string[] =>
   SRC.filter((file) => stripComments(readFileSync(file, 'utf8')).includes(signature));
 
+it('ONE reader of the shared tag vocabulary (images AND videos, docs/17 row 59)', () => {
+  expect(definers('export async function listTagsInUse')).toEqual(['src/db/tagRepo.ts']);
+  expect(definers("orderBy('tags')")).toEqual(['src/db/tagRepo.ts']);
+});
+
 it('the tag rule, the derived list and the filter each have ONE definition', () => {
   expect(definers('export function normalizeTag')).toEqual(['src/domain/tags.ts']);
   expect(definers('export function normalizeTags')).toEqual(['src/domain/tags.ts']);
@@ -31,11 +36,16 @@ it('the tag rule, the derived list and the filter each have ONE definition', () 
   expect(definers('export function filterImages')).toEqual(['src/domain/tags.ts']);
 });
 
-it('there is NO tags table or index — the list lives in the image rows', () => {
-  // The database's version declarations must not grow a tag store: a tag exists
-  // only as long as an image carries it.
+it('there is NO tags table — the list lives in the image and video rows', () => {
+  // The database's version declarations must not grow a tag STORE: a tag exists
+  // only as long as an image or video carries it. The multi-entry `*tags`
+  // INDEX on both tables (docs/17 row 59) is allowed: IndexedDB derives it from
+  // the rows, so it cannot drift from them — and it is the only `tags` there.
   const db = stripComments(readFileSync('src/db/db.ts', 'utf8'));
-  expect(db).not.toContain('tags');
+  expect(db).not.toMatch(/\btags\s*:/);
+  expect(db.match(/tags/g)).toEqual(['tags', 'tags']);
+  expect(db).toContain("images: 'id, createdAt, runId, *tags'");
+  expect(db).toContain("videos: 'id, createdAt, *tags'");
   // No module queries a tags table either.
   const queriers = SRC.filter((file) =>
     /db\.tags\b/.test(stripComments(readFileSync(file, 'utf8'))),

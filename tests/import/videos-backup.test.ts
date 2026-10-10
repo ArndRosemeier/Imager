@@ -38,6 +38,7 @@ const VIDEO: StoredVideo = {
   },
   costUsd: 2.4,
   createdAt: 1_700_000_000_000,
+  tags: ['fox', 'snow'],
 };
 
 const SOURCE: ExportSource = {
@@ -91,6 +92,7 @@ it('an archive written before videos imports as "no videos" and keeps the live v
     unknown
   > & { settings: Record<string, unknown>; layout: Record<string, unknown> };
   delete manifest.videos;
+  // (A pre-tags video entry is covered by `tags` defaulting to [] in the schema.)
   delete manifest.settings.videoModel;
   delete manifest.layout.videos;
   const old = zipSync({ 'manifest.json': new TextEncoder().encode(JSON.stringify(manifest)) });

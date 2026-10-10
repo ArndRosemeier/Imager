@@ -3,7 +3,18 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { EmptyState, SaveButton } from '@/components/ui';
 import { buttonClass, focusRing } from '@/components/styles';
 import { getImage, listImages, saveUploadedImage } from '@/db/imageRepo';
-import { deleteVideo, deleteVideoJob, listVideoJobs, listVideos, putVideoJob } from '@/db/videoRepo';
+import { listTagsInUse } from '@/db/tagRepo';
+import {
+  deleteVideo,
+  deleteVideoJob,
+  listVideoJobs,
+  listVideos,
+  putVideoJob,
+  setVideoTags,
+} from '@/db/videoRepo';
+import { filterImages, tagCounts, type TagMatchMode } from '@/domain/tags';
+import { TagBar } from '@/features/gallery/TagBar';
+import { TagEditor } from '@/features/gallery/TagEditor';
 import type { StoredImage } from '@/domain/image';
 import { isActiveJob, type StoredVideo, type VideoJob, type VideoRequest } from '@/domain/video';
 import { useImageUrl } from '@/features/gallery/useImageUrl';
@@ -502,11 +513,16 @@ function VideoCard({
   video,
   continueBlocked,
   onContinue,
+  tagsInUse,
+  onSetTags,
   onDeleted,
 }: Readonly<{
   video: StoredVideo;
   continueBlocked: string | null;
   onContinue: (imageId: string) => void;
+  /** The ONE shared tag vocabulary (images and videos), for suggestions. */
+  tagsInUse: readonly string[];
+  onSetTags: (next: string[]) => Promise<void>;
   onDeleted: () => void;
 }>): React.JSX.Element {
   const url = useObjectUrl(video.bytes, video.mimeType);
@@ -528,6 +544,7 @@ function VideoCard({
         <span className="font-mono">{video.request.model}</span> · {requestSummary(video.request)} ·{' '}
         {formatCost(video.costUsd)} · {new Date(video.createdAt).toLocaleString()}
       </p>
+      <TagEditor tags={video.tags} suggestions={tagsInUse} onChange={onSetTags} onPhoto={false} />
       <div className="flex flex-wrap items-center gap-2">
         <SaveButton
           label="Download"
@@ -595,6 +612,10 @@ export function VideosArea({
   const [videos, setVideos] = useState<StoredVideo[] | null>(null);
   const [loadError, setLoadError] = useState<Error | null>(null);
   const [startImage, setStartImage] = useState<StartImageRequest | null>(null);
+  /** The tag filter — the gallery's, over the videos (docs/17 row 59). Not persisted. */
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [matchMode, setMatchMode] = useState<TagMatchMode>('AND');
+  const [tagsInUse, setTagsInUse] = useState<string[]>([]);
   const polledOnce = useRef(false);
   // One tick at a time: a stale second check could otherwise write a job back
   // after the first one had already turned it into a video.
@@ -602,11 +623,12 @@ export function VideosArea({
   const mounted = useRef(true);
 
   const reload = useCallback((): void => {
-    Promise.all([listVideoJobs(), listVideos()]).then(
-      ([jobRows, videoRows]) => {
+    Promise.all([listVideoJobs(), listVideos(), listTagsInUse()]).then(
+      ([jobRows, videoRows, tagRows]) => {
         if (!mounted.current) return;
         setJobs(jobRows);
         setVideos(videoRows);
+        setTagsInUse(tagRows);
       },
       (failure: unknown) => {
         if (mounted.current) setLoadError(toError(failure));
@@ -667,6 +689,9 @@ export function VideosArea({
 
   const model = selectedVideoModel(state);
   const newestFirst = [...videos].reverse();
+  // The bar is DERIVED from the video rows, exactly as the gallery derives its own.
+  const videoTags = tagCounts(videos);
+  const visible = filterImages(newestFirst, selectedTags, matchMode);
   const continueBlocked =
     model === undefined
       ? 'Pick a video model in Settings to continue a video.'
@@ -709,14 +734,33 @@ export function VideosArea({
         )}
         <section aria-label="Videos" className="flex flex-col gap-2">
           <h2 className="text-heading text-ink">Videos</h2>
+          {videoTags.length > 0 && (
+            <TagBar
+              tags={videoTags}
+              selected={selectedTags}
+              mode={matchMode}
+              noun="video"
+              onToggle={(tag) => {
+                setSelectedTags((current) =>
+                  current.includes(tag) ? current.filter((entry) => entry !== tag) : [...current, tag],
+                );
+              }}
+              onModeChange={setMatchMode}
+              onClear={() => {
+                setSelectedTags([]);
+              }}
+            />
+          )}
           {newestFirst.length === 0 ? (
             <EmptyState
               title="No videos yet."
               hint="Describe a scene in the form — camera movement, subject, light, mood."
             />
+          ) : visible.length === 0 ? (
+            <p className="text-body text-muted">No video matches the selected tags.</p>
           ) : (
             <ul className="grid gap-3 xl:grid-cols-2">
-              {newestFirst.map((video) => (
+              {visible.map((video) => (
                 <VideoCard
                   key={video.id}
                   video={video}
@@ -724,6 +768,8 @@ export function VideosArea({
                   onContinue={(imageId) => {
                     setStartImage((prev) => ({ imageId, nonce: (prev?.nonce ?? 0) + 1 }));
                   }}
+                  tagsInUse={tagsInUse}
+                  onSetTags={(next) => setVideoTags(video.id, next).then(reload)}
                   onDeleted={reload}
                 />
               ))}

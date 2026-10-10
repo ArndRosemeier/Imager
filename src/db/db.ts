@@ -114,6 +114,15 @@ export class ImagerDb extends Dexie {
       videos: 'id, createdAt',
       videoJobs: 'id, createdAt',
     });
+    // v10 (shared tags, docs/17 row 59): a multi-entry index on the tag list of
+    // BOTH media, so the tags in use can be read as index KEYS without loading
+    // a single image or video's bytes (a video is megabytes). An index is
+    // derived by IndexedDB from the rows themselves — it is NOT a tag table and
+    // cannot drift from them; the rows stay the one source of truth.
+    this.version(10).stores({
+      images: 'id, createdAt, runId, *tags',
+      videos: 'id, createdAt, *tags',
+    });
   }
 }
 

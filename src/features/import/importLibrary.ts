@@ -477,6 +477,8 @@ function videoRow(meta: ExportManifestVideo, bytes: Uint8Array<ArrayBuffer>): St
     request: meta.request,
     costUsd: meta.costUsd,
     createdAt: meta.createdAt,
+    // The same normalization as an image's tags: one tag vocabulary.
+    tags: normalizeTags(meta.tags),
   });
 }
 

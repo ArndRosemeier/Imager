@@ -60,6 +60,12 @@ export const storedVideoSchema = z.strictObject({
   request: videoRequestSchema,
   costUsd: z.number().nullable(),
   createdAt: z.number(),
+  /**
+   * The owner's tags — the SAME vocabulary and rules as image tags
+   * (`src/domain/tags.ts`, docs/17 row 59). `.default([])`: a video stored
+   * before tags existed reads as untagged.
+   */
+  tags: z.array(z.string()).default([]),
 });
 export type StoredVideo = z.infer<typeof storedVideoSchema>;
 

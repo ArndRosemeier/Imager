@@ -1,4 +1,5 @@
 import { db } from '@/db/db';
+import { normalizeTags } from '@/domain/tags';
 import {
   storedVideoSchema,
   videoJobSchema,
@@ -51,6 +52,21 @@ export async function completeVideoJob(video: StoredVideo): Promise<void> {
 /** Dismiss a (failed) job. */
 export async function deleteVideoJob(id: string): Promise<void> {
   await db.videoJobs.delete(id);
+}
+
+/**
+ * Set a video's tags — the video twin of `setImageTags`: normalized HERE with
+ * the one `normalizeTags`, the row re-read and validated and written back with
+ * only the tags swapped (bytes untouched), in ONE transaction. A missing row is
+ * a loud failure.
+ */
+export async function setVideoTags(id: string, tags: readonly string[]): Promise<void> {
+  const normalized = normalizeTags(tags);
+  await db.transaction('rw', db.videos, async () => {
+    const row = await db.videos.get(id);
+    if (row === undefined) throw new Error(`No stored video with id "${id}" to update.`);
+    await db.videos.put({ ...parseVideo(row), tags: normalized });
+  });
 }
 
 export async function deleteVideo(id: string): Promise<void> {
