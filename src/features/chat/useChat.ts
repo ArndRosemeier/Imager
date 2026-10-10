@@ -1,52 +1,12 @@
-import { useEffect, useState } from 'react';
-
-import { getSettings } from '@/db/settingsRepo';
-import type { Settings } from '@/domain/settings';
+import { useModelList, type ModelListState } from '@/features/settings/useModelList';
 import { canRefineViaChat, listModels, type OpenRouterModel } from '@/llm/models';
-import { errorMessage, toError } from '@/lib/errors';
-import { toastError } from '@/lib/toast';
 
 /** The two async loads the chat path needs: settings and the model list. */
-export interface ChatPanelState {
-  settings: Settings;
-  /** The live model list, or null while it loads. */
-  models: OpenRouterModel[] | null;
-  modelsError: string | null;
-}
+export type ChatPanelState = ModelListState<OpenRouterModel>;
 
 /** A corrupt settings row throws to the boundary (rule 1/2). */
 export function useChat(): { state: ChatPanelState | null; error: Error | null } {
-  const [state, setState] = useState<ChatPanelState | null>(null);
-  const [error, setError] = useState<Error | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    getSettings().then(
-      (settings) => {
-        if (cancelled) return;
-        setState({ settings, models: null, modelsError: null });
-        listModels(settings.openRouterApiKey).then(
-          (models) => {
-            if (!cancelled) setState((prev) => (prev === null ? prev : { ...prev, models }));
-          },
-          (modelsFailure: unknown) => {
-            if (cancelled) return;
-            const message = errorMessage(modelsFailure);
-            setState((prev) => (prev === null ? prev : { ...prev, modelsError: message }));
-            toastError('Could not load the OpenRouter model list', modelsFailure);
-          },
-        );
-      },
-      (loadError: unknown) => {
-        if (!cancelled) setError(toError(loadError));
-      },
-    );
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  return { state, error };
+  return useModelList(listModels, 'OpenRouter model list');
 }
 
 /**

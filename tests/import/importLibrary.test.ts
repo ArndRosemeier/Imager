@@ -123,6 +123,7 @@ const SOURCE: ExportSource = {
   conversations: [CONVERSATION],
   songs: [],
   musicSessions: [],
+  videos: [],
   settings: SETTINGS,
 };
 
@@ -185,6 +186,7 @@ it('ROUND TRIP: a good archive rebuilds every row, byte-identical, with its ids'
     refineChatModel: SETTINGS.refineChatModel,
     musicModel: SETTINGS.musicModel,
     songWriterModel: SETTINGS.songWriterModel,
+    videoModel: SETTINGS.videoModel,
   });
   expect(preview.images).toEqual({ incoming: 2, fresh: 2, existing: 0 });
   expect(preview.runs).toEqual({ incoming: 1, fresh: 1, existing: 0 });
@@ -200,6 +202,7 @@ it('ROUND TRIP: a good archive rebuilds every row, byte-identical, with its ids'
     conversations: { added: 1, replaced: 0, skipped: 0 },
     songs: { added: 0, replaced: 0, skipped: 0 },
     musicSessions: { added: 0, replaced: 0, skipped: 0 },
+    videos: { added: 0, replaced: 0, skipped: 0 },
     settingsApplied: true,
     danglingImageIds: [],
     danglingSongIds: [],

@@ -21,7 +21,11 @@ export const AUDIO_FORMATS = {
   ogg: { name: 'ogg', mimeType: 'audio/ogg', extension: 'ogg' },
 } as const satisfies Record<string, AudioFormat>;
 
-function startsWith(bytes: Uint8Array, ascii: string, offset = 0): boolean {
+/**
+ * True when `bytes` hold `ascii` at `offset` — the one byte-signature compare,
+ * shared with the video sniff (`src/lib/videoFormat.ts`).
+ */
+export function startsWith(bytes: Uint8Array, ascii: string, offset = 0): boolean {
   if (bytes.length < offset + ascii.length) return false;
   for (let i = 0; i < ascii.length; i += 1) {
     if (bytes[offset + i] !== ascii.charCodeAt(i)) return false;

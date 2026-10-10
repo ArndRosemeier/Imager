@@ -92,6 +92,7 @@ const SOURCE: ExportSource = {
   conversations: [],
   songs: [SONG],
   musicSessions: [SESSION],
+  videos: [],
   settings: SETTINGS,
 };
 

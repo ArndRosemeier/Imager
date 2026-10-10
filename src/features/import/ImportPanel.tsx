@@ -54,17 +54,24 @@ function planLine(label: string, plan: ImportPreview['images']): string {
   return `${label}: ${plan.incoming.toString()} in the file — ${plan.fresh.toString()} new, ${plan.existing.toString()} already here`;
 }
 
-/** A music pick as the file recorded it: absent in a pre-Music archive. */
-function musicPickLabel(pick: string | undefined): string {
+/** A pick as the file recorded it: absent in an archive older than that pick. */
+function optionalPickLabel(pick: string | undefined): string {
   if (pick === undefined) return '(not in this file)';
   return pick === '' ? '(none)' : pick;
 }
 
 /** What the chosen conflict rule does, over EVERY table the archive carries. */
 function conflictLine(conflict: ConflictChoice, preview: ImportPreview): string {
-  const plans = [preview.images, preview.runs, preview.conversations, preview.songs, preview.musicSessions];
+  const plans = [
+    preview.images,
+    preview.runs,
+    preview.conversations,
+    preview.songs,
+    preview.musicSessions,
+    preview.videos,
+  ];
   const existing = plans.reduce((total, plan) => total + plan.existing, 0);
-  const adds = `Adds ${preview.images.fresh.toString()} new images, ${preview.runs.fresh.toString()} runs, ${preview.conversations.fresh.toString()} conversations, ${preview.songs.fresh.toString()} songs and ${preview.musicSessions.fresh.toString()} song chats`;
+  const adds = `Adds ${preview.images.fresh.toString()} new images, ${preview.runs.fresh.toString()} runs, ${preview.conversations.fresh.toString()} conversations, ${preview.songs.fresh.toString()} songs, ${preview.musicSessions.fresh.toString()} song chats and ${preview.videos.fresh.toString()} videos`;
   return conflict === 'Keep both'
     ? `${adds}; leaves the ${existing.toString()} rows you already have exactly as they are.`
     : `${adds}; overwrites the ${existing.toString()} rows you already have with the file's version.`;
@@ -175,11 +182,13 @@ export function ImportPanel({
               <p className="text-caption text-muted">
                 {planLine('Song chats', loaded.preview.musicSessions)}
               </p>
+              <p className="text-caption text-muted">{planLine('Videos', loaded.preview.videos)}</p>
               <p className="text-caption text-muted">
                 Settings in the file: image model {loaded.preview.settings.imageModel || '(none)'},
                 refinement model {loaded.preview.settings.refineChatModel || '(none)'}, music model{' '}
-                {musicPickLabel(loaded.preview.settings.musicModel)}, song-writer model{' '}
-                {musicPickLabel(loaded.preview.settings.songWriterModel)}.
+                {optionalPickLabel(loaded.preview.settings.musicModel)}, song-writer model{' '}
+                {optionalPickLabel(loaded.preview.settings.songWriterModel)}, video model{' '}
+                {optionalPickLabel(loaded.preview.settings.videoModel)}.
               </p>
               {loaded.preview.danglingImageIds.length > 0 && (
                 <p className="text-caption text-muted">

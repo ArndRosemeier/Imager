@@ -1,45 +1,15 @@
 import { useId, useMemo, useState } from 'react';
 
 import { focusRing } from '@/components/styles';
-import {
-  acceptsImageInput,
-  canGenerateAudio,
-  canGenerateImages,
-  canRefineViaChat,
-  canWriteSongSheet,
-  type OpenRouterModel,
-} from '@/llm/models';
+import type { ModelOption } from '@/features/settings/modelOptions';
 
 interface Props {
   label: string;
   /** One line under the heading saying what this pick is for, when needed. */
   hint?: string | undefined;
-  models: readonly OpenRouterModel[];
+  models: readonly ModelOption[];
   selectedId: string;
   onSelect: (id: string) => void;
-}
-
-/** Prices are USD-per-unit decimal strings; show them as given, per unit. */
-function priceSummary(model: OpenRouterModel): string {
-  const parts: string[] = [];
-  for (const key of ['prompt', 'completion', 'image', 'image_output', 'audio_output'] as const) {
-    const value = model.pricing[key];
-    if (typeof value === 'string')
-      parts.push(`${key} ${value === '-1' ? 'variable' : `$${value}`}`);
-  }
-  return parts.length === 0 ? 'price n/a' : parts.join(' · ');
-}
-
-/** What the model can do, read from the capability seam — never from its id. */
-function badges(model: OpenRouterModel): string[] {
-  const out: string[] = [];
-  if (canGenerateImages(model)) out.push('image out');
-  if (canGenerateAudio(model)) out.push('audio out');
-  if (canWriteSongSheet(model)) out.push('structured text');
-  if (acceptsImageInput(model)) out.push('image in');
-  if (canRefineViaChat(model))
-    out.push('chat refine');
-  return out;
 }
 
 /** Searchable single-select model list. Empty selection is a visible state. */
@@ -108,9 +78,9 @@ export function ModelPicker({
               >
                 <span className="text-body font-medium text-ink">{m.name}</span>{' '}
                 <span className="font-mono text-caption text-muted">{m.id}</span>
-                <span className="block text-caption text-muted">{priceSummary(m)}</span>
+                <span className="block text-caption text-muted">{m.price}</span>
                 <span className="flex flex-wrap gap-1 pt-0.5">
-                  {badges(m).map((b) => (
+                  {m.badges.map((b) => (
                     <span key={b} className="chip">
                       {b}
                     </span>

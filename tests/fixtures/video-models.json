@@ -1,0 +1,35 @@
+{
+  "data": [
+    {
+      "id": "google/veo-3.1",
+      "canonical_slug": "google/veo-3.1",
+      "name": "Google: Veo 3.1",
+      "description": "RECONSTRUCTED from OpenRouter's video-generation guide (2026-10-10), not a raw snapshot.",
+      "created": 1760000000,
+      "supported_durations": [4, 6, 8],
+      "supported_resolutions": ["720p", "1080p"],
+      "supported_aspect_ratios": ["16:9", "9:16"],
+      "supported_sizes": null,
+      "supported_frame_images": ["first_frame", "last_frame"],
+      "generate_audio": true,
+      "seed": true,
+      "pricing_skus": { "video_seconds": "0.40" },
+      "allowed_passthrough_parameters": ["output_config"]
+    },
+    {
+      "id": "alibaba/wan-2.7",
+      "canonical_slug": "alibaba/wan-2.7",
+      "name": "Alibaba: Wan 2.7",
+      "created": 1760000000,
+      "supported_durations": [5],
+      "supported_resolutions": null,
+      "supported_aspect_ratios": null,
+      "supported_sizes": null,
+      "supported_frame_images": null,
+      "generate_audio": null,
+      "seed": null,
+      "pricing_skus": null,
+      "allowed_passthrough_parameters": []
+    }
+  ]
+}

@@ -40,6 +40,7 @@ import { updateSettings } from '@/db/settingsRepo';
 import { type Conversation } from '@/domain/chat';
 import { runSchema, storedImageSchema, type StoredImage } from '@/domain/image';
 import { storedSongSchema, type MusicSession, type StoredSong } from '@/domain/music';
+import { storedVideoSchema, type StoredVideo } from '@/domain/video';
 import { normalizeTags } from '@/domain/tags';
 import {
   EXPORT_FORMAT,
@@ -49,6 +50,7 @@ import {
   type ExportManifest,
   type ExportManifestImage,
   type ExportManifestSong,
+  type ExportManifestVideo,
 } from '@/features/export/exportLibrary';
 import { errorMessage } from '@/lib/errors';
 import { sha256Hex } from '@/lib/sha256';
@@ -92,10 +94,17 @@ export interface ArchiveSong {
   bytes: Uint8Array<ArrayBuffer>;
 }
 
+/** One manifest video entry plus the bytes its entry actually held (docs/17 row 56). */
+export interface ArchiveVideo {
+  meta: ExportManifestVideo;
+  bytes: Uint8Array<ArrayBuffer>;
+}
+
 export interface ValidatedArchive {
   manifest: ExportManifest;
   images: ArchiveImage[];
   songs: ArchiveSong[];
+  videos: ArchiveVideo[];
 }
 
 /** `JSON.parse` yields `any`; this keeps the strict lint honest at the boundary. */
@@ -169,7 +178,8 @@ export async function readLibraryArchive(
 
   const images = await verifiedEntries('image', manifest.images, entries);
   const songs = await verifiedEntries('song', manifest.songs, entries);
-  return { manifest, images, songs };
+  const videos = await verifiedEntries('video', manifest.videos, entries);
+  return { manifest, images, songs, videos };
 }
 
 /** What every manifest entry with bytes carries (images and songs alike). */
@@ -181,17 +191,17 @@ interface ManifestEntryMeta {
 }
 
 /**
- * THE integrity check for one kind of byte-carrying entry — images and songs go
- * through the SAME code (docs/17 row 53), so a song can never be held to a
- * weaker standard than a picture. THROWS on a duplicate id, a missing entry, a
+ * THE integrity check for one kind of byte-carrying entry — images, songs and
+ * videos go through the SAME code (docs/17 rows 53/56), so no medium is ever
+ * held to a weaker standard than a picture. THROWS on a duplicate id, a missing entry, a
  * length mismatch or a SHA-256 mismatch, naming the entry.
  */
 async function verifiedEntries<M extends ManifestEntryMeta>(
-  kind: 'image' | 'song',
+  kind: 'image' | 'song' | 'video',
   metas: readonly M[],
   entries: Readonly<Record<string, Uint8Array<ArrayBuffer>>>,
 ): Promise<{ meta: M; bytes: Uint8Array<ArrayBuffer> }[]> {
-  const Kind = kind === 'image' ? 'Image' : 'Song';
+  const Kind = kind.charAt(0).toUpperCase() + kind.slice(1);
   const verified: { meta: M; bytes: Uint8Array<ArrayBuffer> }[] = [];
   const seenIds = new Set<string>();
   for (const meta of metas) {
@@ -247,6 +257,7 @@ export interface ImportPreview {
   conversations: TablePlan;
   songs: TablePlan;
   musicSessions: TablePlan;
+  videos: TablePlan;
   /**
    * Image ids referenced by the archive's runs/conversations that resolve to
    * NEITHER an archive entry NOR the live library — they will still be dangling
@@ -307,12 +318,13 @@ async function existingIds<T extends { id: string }>(
  * informed rather than blind.
  */
 export async function previewImport(archive: ValidatedArchive): Promise<ImportPreview> {
-  const [imageIds, runIds, conversationIds, songIds, musicSessionIds] = await Promise.all([
+  const [imageIds, runIds, conversationIds, songIds, musicSessionIds, videoIds] = await Promise.all([
     existingIds(db.images),
     existingIds(db.runs),
     existingIds(db.conversations),
     existingIds(db.songs),
     existingIds(db.musicSessions),
+    existingIds(db.videos),
   ]);
   const { manifest } = archive;
   // An image resolves after the import if the archive carries it (it will be
@@ -342,6 +354,10 @@ export async function previewImport(archive: ValidatedArchive): Promise<ImportPr
       manifest.musicSessions.map((session) => session.id),
       musicSessionIds,
     ),
+    videos: planFor(
+      manifest.videos.map((video) => video.id),
+      videoIds,
+    ),
     danglingImageIds: danglingIds(manifest, resolvable),
     danglingSongIds: danglingSongIds(
       manifest,
@@ -366,6 +382,7 @@ export interface ImportResult {
   conversations: WriteTally;
   songs: WriteTally;
   musicSessions: WriteTally;
+  videos: WriteTally;
   /** True only for the "Apply settings" choice, and only if the write returned. */
   settingsApplied: boolean;
   danglingImageIds: string[];
@@ -383,6 +400,7 @@ export function importResultSummary(result: ImportResult): string {
     part('conversations', result.conversations),
     part('songs', result.songs),
     part('song chats', result.musicSessions),
+    part('videos', result.videos),
     result.settingsApplied ? 'settings applied' : 'settings kept',
   ].join(' · ');
 }
@@ -450,6 +468,18 @@ function songRow(meta: ExportManifestSong, bytes: Uint8Array<ArrayBuffer>): Stor
   });
 }
 
+/** A manifest video entry plus its verified bytes → the stored row. */
+function videoRow(meta: ExportManifestVideo, bytes: Uint8Array<ArrayBuffer>): StoredVideo {
+  return storedVideoSchema.parse({
+    id: meta.id,
+    bytes,
+    mimeType: meta.mimeType,
+    request: meta.request,
+    costUsd: meta.costUsd,
+    createdAt: meta.createdAt,
+  });
+}
+
 /**
  * Apply a validated archive. ONE Dexie transaction across every table it writes
  * (images, runs, conversations and — when settings are applied — settings), so
@@ -469,6 +499,7 @@ export async function applyImport(
   const conversations: Conversation[] = archive.manifest.conversations;
   const songs = archive.songs.map(({ meta, bytes }) => songRow(meta, bytes));
   const musicSessions: MusicSession[] = archive.manifest.musicSessions;
+  const videos = archive.videos.map(({ meta, bytes }) => videoRow(meta, bytes));
   const resolvable = new Set<string>([
     ...(await existingIds(db.images)),
     ...archive.manifest.images.map((image) => image.id),
@@ -481,13 +512,14 @@ export async function applyImport(
 
   return db.transaction(
     'rw',
-    [db.images, db.runs, db.conversations, db.songs, db.musicSessions, db.settings],
+    [db.images, db.runs, db.conversations, db.songs, db.musicSessions, db.videos, db.settings],
     async (): Promise<ImportResult> => {
       const imageTally = await writeRows(db.images, images, choices.conflict);
       const runTally = await writeRows(db.runs, runs, choices.conflict);
       const conversationTally = await writeRows(db.conversations, conversations, choices.conflict);
       const songTally = await writeRows(db.songs, songs, choices.conflict);
       const musicSessionTally = await writeRows(db.musicSessions, musicSessions, choices.conflict);
+      const videoTally = await writeRows(db.videos, videos, choices.conflict);
 
       let settingsApplied = false;
       if (choices.settings === 'Apply settings') {
@@ -504,6 +536,9 @@ export async function applyImport(
           ...(archive.manifest.settings.songWriterModel === undefined
             ? {}
             : { songWriterModel: archive.manifest.settings.songWriterModel }),
+          ...(archive.manifest.settings.videoModel === undefined
+            ? {}
+            : { videoModel: archive.manifest.settings.videoModel }),
         });
         settingsApplied = true;
       }
@@ -514,6 +549,7 @@ export async function applyImport(
         conversations: conversationTally,
         songs: songTally,
         musicSessions: musicSessionTally,
+        videos: videoTally,
         settingsApplied,
         danglingImageIds: dangling,
         danglingSongIds: danglingSongs,

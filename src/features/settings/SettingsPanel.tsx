@@ -16,7 +16,9 @@ import {
   listModels,
   type OpenRouterModel,
 } from '@/llm/models';
+import { listVideoModels, type VideoModel } from '@/llm/video';
 import { ModelPicker } from '@/features/settings/ModelPicker';
+import { openRouterOption, videoOption } from '@/features/settings/modelOptions';
 import { errorMessage, toError } from '@/lib/errors';
 import { toastError, toastSuccess } from '@/lib/toast';
 
@@ -25,6 +27,8 @@ export function SettingsPanel(): React.JSX.Element {
   const [keyDraft, setKeyDraft] = useState('');
   const [models, setModels] = useState<OpenRouterModel[] | null>(null);
   const [modelsError, setModelsError] = useState<string | null>(null);
+  const [videoModels, setVideoModels] = useState<VideoModel[] | null>(null);
+  const [videoModelsError, setVideoModelsError] = useState<string | null>(null);
   const [testing, setTesting] = useState(false);
   const [loadError, setLoadError] = useState<Error | null>(null);
   /**
@@ -40,6 +44,15 @@ export function SettingsPanel(): React.JSX.Element {
     listModels(apiKey).then(setModels, (error: unknown) => {
       setModelsError(errorMessage(error));
       toastError('Could not load the OpenRouter model list', error);
+    });
+  }, []);
+
+  /** The video models are their own list (`GET /videos/models`, docs/17 row 56). */
+  const loadVideoModels = useCallback((apiKey: string) => {
+    setVideoModelsError(null);
+    listVideoModels(apiKey).then(setVideoModels, (error: unknown) => {
+      setVideoModelsError(errorMessage(error));
+      toastError('Could not load the OpenRouter video-model list', error);
     });
   }, []);
 
@@ -61,12 +74,13 @@ export function SettingsPanel(): React.JSX.Element {
         setSettings(s);
         setKeyDraft(s.openRouterApiKey);
         loadModels(s.openRouterApiKey);
+        loadVideoModels(s.openRouterApiKey);
       },
       (error: unknown) => {
         setLoadError(toError(error));
       },
     );
-  }, [loadModels]);
+  }, [loadModels, loadVideoModels]);
 
   // A corrupt settings row goes to the error boundary (rule 1/2).
   if (loadError !== null) throw loadError;
@@ -176,7 +190,7 @@ export function SettingsPanel(): React.JSX.Element {
         <>
           <ModelPicker
             label="Image model"
-            models={imageModels}
+            models={imageModels.map(openRouterOption)}
             selectedId={settings.imageModel}
             onSelect={(id) => {
               save({ imageModel: id });
@@ -184,7 +198,7 @@ export function SettingsPanel(): React.JSX.Element {
           />
           <ModelPicker
             label="Refinement model"
-            models={refineModels}
+            models={refineModels.map(openRouterOption)}
             selectedId={settings.refineChatModel}
             onSelect={(id) => {
               save({ refineChatModel: id });
@@ -193,7 +207,7 @@ export function SettingsPanel(): React.JSX.Element {
           <ModelPicker
             label="Music model"
             hint="Renders songs on the Music tab. Every model that outputs audio is listed; OpenRouter does not mark which are for music and which for speech."
-            models={musicModels}
+            models={musicModels.map(openRouterOption)}
             selectedId={settings.musicModel}
             onSelect={(id) => {
               save({ musicModel: id });
@@ -202,13 +216,41 @@ export function SettingsPanel(): React.JSX.Element {
           <ModelPicker
             label="Song-writer model"
             hint="A text model that rewrites the song sheet from your directions on the Music tab. Only models with structured JSON output are listed."
-            models={writerModels}
+            models={writerModels.map(openRouterOption)}
             selectedId={settings.songWriterModel}
             onSelect={(id) => {
               save({ songWriterModel: id });
             }}
           />
         </>
+      )}
+      {videoModelsError !== null && (
+        <div
+          role="alert"
+          className="card flex flex-wrap items-center gap-2 border-danger bg-danger-surface p-3 text-on-danger-surface"
+        >
+          <span className="text-body">Video-model list failed to load: {videoModelsError}</span>
+          <button
+            type="button"
+            className={buttonClass('secondary')}
+            onClick={() => {
+              loadVideoModels(settings.openRouterApiKey);
+            }}
+          >
+            Retry
+          </button>
+        </div>
+      )}
+      {videoModels !== null && videoModelsError === null && (
+        <ModelPicker
+          label="Video model"
+          hint="Generates videos on the Videos tab. Listed from OpenRouter's video models, with what each one supports."
+          models={videoModels.map(videoOption)}
+          selectedId={settings.videoModel}
+          onSelect={(id) => {
+            save({ videoModel: id });
+          }}
+        />
       )}
       {models !== null && models.length === 0 && (
         <EmptyState

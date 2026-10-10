@@ -78,7 +78,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-it('the app bar offers six tabs, the grid belongs to Gallery and Generate has none', async () => {
+it('the app bar offers seven tabs, the grid belongs to Gallery and Generate has none', async () => {
   stubFetch(() => jsonResponse({}));
   render(<App />);
   const user = userEvent.setup();
@@ -91,6 +91,7 @@ it('the app bar offers six tabs, the grid belongs to Gallery and Generate has no
     'Gallery',
     'Chat',
     'Music',
+    'Videos',
     'Store',
     'Settings',
   ]);

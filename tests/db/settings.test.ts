@@ -17,6 +17,8 @@ it('defaults are all empty — the app never picks a model', async () => {
     // The Music tab's two picks (docs/17 row 52): empty, never a chosen model.
     musicModel: '',
     songWriterModel: '',
+    // The Videos tab's pick (docs/17 row 56): empty too.
+    videoModel: '',
     // The ServerStore fields (docs/17 row 42): the deployment and store name
     // are defaults the app MAY know; the KEY and the folder choice are empty
     // until the owner supplies them.
@@ -48,6 +50,7 @@ it('a settings row written before the ServerStore fields reads as UNCONFIGURED',
     // A pre-Music row reads the two music picks as unselected (docs/17 row 52).
     musicModel: '',
     songWriterModel: '',
+    videoModel: '',
     serverStoreBaseUrl: '',
     serverStoreName: '',
     serverStoreKey: '',

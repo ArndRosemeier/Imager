@@ -39,11 +39,12 @@ it('no model id literal appears in src/', () => {
        * are the ServerStore slice's (docs/17 row 42): they are CONTRACTUAL
        * media types, not model ids, and the allow-list stays explicit so a new
        * `vendor/model` string still fails this pin. The `audio/*` types are the
-       * music slice's (docs/17 row 52), named in `src/lib/audioFormat.ts`.
+       * music slice's (docs/17 row 52), named in `src/lib/audioFormat.ts`; the `video/*` types
+       * are the video slice's (docs/17 row 56), named in `src/lib/videoFormat.ts`.
        */
       .filter(
         (s) =>
-          !/: (application\/json|application\/zip|application\/octet-stream|image\/webp|image\/png|image\/jpeg|image\/avif|audio\/mpeg|audio\/wav|audio\/flac|audio\/ogg|vite\/client|react-dom\/client)$/.test(
+          !/: (application\/json|application\/zip|application\/octet-stream|image\/webp|image\/png|image\/jpeg|image\/avif|audio\/mpeg|audio\/wav|audio\/flac|audio\/ogg|video\/mp4|video\/quicktime|video\/webm|vite\/client|react-dom\/client)$/.test(
             s,
           ),
       ),

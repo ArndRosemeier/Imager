@@ -4,6 +4,7 @@ import type { Conversation } from '@/domain/chat';
 import type { Run, StoredImage } from '@/domain/image';
 import type { MusicSession, StoredSong } from '@/domain/music';
 import type { Settings } from '@/domain/settings';
+import type { StoredVideo, VideoJob } from '@/domain/video';
 
 /** The single settings row lives under this fixed key. */
 export const SETTINGS_ID = 'settings';
@@ -52,6 +53,8 @@ export class ImagerDb extends Dexie {
   storeObjects!: EntityTable<StoreObjectRow, 'name'>;
   songs!: EntityTable<StoredSong, 'id'>;
   musicSessions!: EntityTable<MusicSession, 'id'>;
+  videos!: EntityTable<StoredVideo, 'id'>;
+  videoJobs!: EntityTable<VideoJob, 'id'>;
 
   constructor(name = 'imager') {
     super(name);
@@ -101,6 +104,15 @@ export class ImagerDb extends Dexie {
     this.version(8).stores({
       songs: 'id, createdAt, sessionId',
       musicSessions: 'id, updatedAt',
+    });
+    // v9 (Videos tab, docs/17 row 56): two NEW tables. `videoJobs` holds the
+    // jobs OpenRouter is still working on (or that failed), stored the moment
+    // they are submitted so a paid job survives a tab switch or a reload;
+    // `videos` holds the finished videos (bytes as Uint8Array, like images and
+    // songs). Only the new stores are declared; every v1-v8 store is carried.
+    this.version(9).stores({
+      videos: 'id, createdAt',
+      videoJobs: 'id, createdAt',
     });
   }
 }

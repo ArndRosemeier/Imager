@@ -46,6 +46,7 @@ const source: ExportSource = {
   conversations: [],
   songs: [],
   musicSessions: [],
+  videos: [],
   settings,
 };
 
@@ -73,12 +74,13 @@ it('COS: the sentinel key is nowhere in the backup archive (manifest, entries, r
   const manifest = JSON.parse(strFromU8(unzipSync(archive.bytes)['manifest.json'] ?? new Uint8Array())) as {
     settings: Record<string, unknown>;
   };
-  // The music picks joined the allow-list with docs/17 row 53; the keys still did not.
+  // The music picks joined the allow-list with docs/17 row 53 and the video pick with row 56; the keys still did not.
   expect(Object.keys(manifest.settings).sort()).toEqual([
     'imageModel',
     'musicModel',
     'refineChatModel',
     'songWriterModel',
+    'videoModel',
   ]);
 });
 

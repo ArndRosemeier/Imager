@@ -24,6 +24,11 @@ export const settingsSchema = z.strictObject({
    */
   musicModel: z.string().default(''),
   songWriterModel: z.string().default(''),
+  /**
+   * The Videos tab's pick (docs/17 row 56): the model a video is generated
+   * with. `.default('')` for the same reason as the music picks.
+   */
+  videoModel: z.string().default(''),
   /** The ServerStore HTTP origin, e.g. `https://store.futuremagic.de`. */
   serverStoreBaseUrl: z.string().default(''),
   /** The store objects live in. Fixed by the dispatcher's object model: `imager`. */
@@ -52,6 +57,7 @@ export const DEFAULT_SETTINGS: Settings = {
   refineChatModel: '',
   musicModel: '',
   songWriterModel: '',
+  videoModel: '',
   serverStoreBaseUrl: 'https://store.futuremagic.de',
   serverStoreName: 'imager',
   serverStoreKey: '',
