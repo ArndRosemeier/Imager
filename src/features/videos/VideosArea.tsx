@@ -2,11 +2,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { EmptyState, SaveButton } from '@/components/ui';
 import { buttonClass, focusRing } from '@/components/styles';
-import { getImage, listImages } from '@/db/imageRepo';
+import { getImage, listImages, saveUploadedImage } from '@/db/imageRepo';
 import { deleteVideo, deleteVideoJob, listVideoJobs, listVideos, putVideoJob } from '@/db/videoRepo';
 import type { StoredImage } from '@/domain/image';
 import { isActiveJob, type StoredVideo, type VideoJob, type VideoRequest } from '@/domain/video';
 import { useImageUrl } from '@/features/gallery/useImageUrl';
+import { lastFrameOf } from '@/features/videos/lastFrame';
 import { checkVideoJob, startVideo } from '@/features/videos/runVideo';
 import { videoFileName } from '@/features/videos/videoFile';
 import {
@@ -48,6 +49,12 @@ function requestSummary(request: VideoRequest): string {
   ]
     .filter((part) => part !== null)
     .join(' · ');
+}
+
+/** A one-shot request to stage an image as the start image; the nonce makes a repeat a new request. */
+interface StartImageRequest {
+  imageId: string;
+  nonce: number;
 }
 
 /** What the picked model can start from, in one sentence. */
@@ -250,10 +257,13 @@ function SelectedFrame({
 function VideoForm({
   state,
   model,
+  startImage,
   onSubmitted,
 }: Readonly<{
   state: VideoPanelState;
   model: VideoModel | undefined;
+  /** A one-shot "use this as the start image" (Continue this video). */
+  startImage: StartImageRequest | null;
   onSubmitted: () => void;
 }>): React.JSX.Element {
   const [prompt, setPrompt] = useState('');
@@ -264,6 +274,11 @@ function VideoForm({
   const [audio, setAudio] = useState(true);
   const [firstFrameId, setFirstFrameId] = useState<string | null>(null);
   const [lastFrameId, setLastFrameId] = useState<string | null>(null);
+  useEffect(() => {
+    if (startImage === null) return;
+    setFirstFrameId(startImage.imageId);
+    document.getElementById('video-prompt')?.focus();
+  }, [startImage]);
   const [submitting, setSubmitting] = useState(false);
   const blocked = videoBlockReason(state, prompt);
 
@@ -427,10 +442,73 @@ function JobRow({
   );
 }
 
+/**
+ * "Continue this video" (docs/17 row 58): OpenRouter takes no video input, so
+ * the continuation starts from the video's LAST FRAME — saved to the gallery
+ * (where it stays reusable) and staged as the form's start image.
+ */
+function ContinueButton({
+  video,
+  url,
+  blocked,
+  onContinue,
+}: Readonly<{
+  video: StoredVideo;
+  url: string | null;
+  blocked: string | null;
+  onContinue: (imageId: string) => void;
+}>): React.JSX.Element {
+  const [working, setWorking] = useState(false);
+  return (
+    <>
+      <button
+        type="button"
+        className={buttonClass('secondary')}
+        disabled={url === null || blocked !== null || working}
+        title={blocked ?? undefined}
+        onClick={() => {
+          if (url === null) return;
+          setWorking(true);
+          lastFrameOf(url)
+            .then((frame) =>
+              saveUploadedImage({
+                bytes: frame.bytes,
+                mimeType: frame.mimeType,
+                fileName: `Last frame of: ${video.request.prompt}`,
+              }),
+            )
+            .then(
+              (image) => {
+                onContinue(image.id);
+                toastSuccess('Last frame set as the start image', 'It is saved in the gallery too.');
+              },
+              (error: unknown) => {
+                toastError('Could not take the last frame of the video', error);
+              },
+            )
+            .finally(() => {
+              setWorking(false);
+            });
+        }}
+      >
+        {working ? 'Taking the last frame…' : 'Continue this video'}
+      </button>
+      {blocked !== null && <span className="text-caption text-muted">{blocked}</span>}
+    </>
+  );
+}
+
 function VideoCard({
   video,
+  continueBlocked,
+  onContinue,
   onDeleted,
-}: Readonly<{ video: StoredVideo; onDeleted: () => void }>): React.JSX.Element {
+}: Readonly<{
+  video: StoredVideo;
+  continueBlocked: string | null;
+  onContinue: (imageId: string) => void;
+  onDeleted: () => void;
+}>): React.JSX.Element {
   const url = useObjectUrl(video.bytes, video.mimeType);
   const [confirming, setConfirming] = useState(false);
   return (
@@ -459,6 +537,7 @@ function VideoCard({
             buildBytes: () => video.bytes,
           })}
         />
+        <ContinueButton video={video} url={url} blocked={continueBlocked} onContinue={onContinue} />
         {confirming ? (
           <div role="group" aria-label="Confirm delete" className="flex flex-wrap items-center gap-2">
             <span className="text-caption text-ink">Delete this video?</span>
@@ -515,6 +594,7 @@ export function VideosArea({
   const [jobs, setJobs] = useState<VideoJob[] | null>(null);
   const [videos, setVideos] = useState<StoredVideo[] | null>(null);
   const [loadError, setLoadError] = useState<Error | null>(null);
+  const [startImage, setStartImage] = useState<StartImageRequest | null>(null);
   const polledOnce = useRef(false);
   // One tick at a time: a stale second check could otherwise write a job back
   // after the first one had already turned it into a video.
@@ -587,10 +667,22 @@ export function VideosArea({
 
   const model = selectedVideoModel(state);
   const newestFirst = [...videos].reverse();
+  const continueBlocked =
+    model === undefined
+      ? 'Pick a video model in Settings to continue a video.'
+      : acceptsFirstFrame(model)
+        ? null
+        : `${model.name} takes no start image, so it cannot continue a video.`;
 
   return (
     <div className="grid gap-3 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] lg:items-start">
-      <VideoForm key={model?.id ?? ''} state={state} model={model} onSubmitted={reload} />
+      <VideoForm
+        key={model?.id ?? ''}
+        state={state}
+        model={model}
+        startImage={startImage}
+        onSubmitted={reload}
+      />
       <div className="flex min-w-0 flex-col gap-3">
         {jobs.length > 0 && (
           <section aria-label="Video jobs" className="flex flex-col gap-2">
@@ -625,7 +717,15 @@ export function VideosArea({
           ) : (
             <ul className="grid gap-3 xl:grid-cols-2">
               {newestFirst.map((video) => (
-                <VideoCard key={video.id} video={video} onDeleted={reload} />
+                <VideoCard
+                  key={video.id}
+                  video={video}
+                  continueBlocked={continueBlocked}
+                  onContinue={(imageId) => {
+                    setStartImage((prev) => ({ imageId, nonce: (prev?.nonce ?? 0) + 1 }));
+                  }}
+                  onDeleted={reload}
+                />
               ))}
             </ul>
           )}
