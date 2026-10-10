@@ -134,3 +134,47 @@ it('a 200 error envelope → failed run row + visible error + toast, zero images
   expect(runs).toHaveLength(1);
   expect(runs[0]?.error).toMatch(/Prompt was refused/);
 });
+
+it('shows the latest generation in the Generate tab, and again after leaving and returning', async () => {
+  stubFetch(() =>
+    jsonResponse({
+      data: [
+        { b64_json: btoa('a'), media_type: 'image/png' },
+        { b64_json: btoa('b'), media_type: 'image/png' },
+      ],
+      usage: { cost: 0.01 },
+    }),
+  );
+  await updateSettings({ openRouterApiKey: 'sk', imageModel: 'openai/gpt-image-1' });
+  render(<App />);
+  const user = userEvent.setup();
+  await screen.findByRole('combobox', { name: 'Aspect ratio' });
+  await user.type(screen.getByLabelText('Prompt'), 'a blue owl');
+  await user.selectOptions(screen.getByRole('combobox', { name: 'Count' }), '2');
+  await user.click(screen.getByRole('button', { name: 'Generate' }));
+  const result = await screen.findByRole('group', { name: 'Latest result' });
+  expect(await within(result).findAllByRole('img', { name: 'Result: a blue owl' })).toHaveLength(2);
+
+  await user.click(screen.getByRole('tab', { name: 'Gallery' }));
+  await screen.findByRole('region', { name: 'Gallery' });
+  expect(screen.queryByRole('group', { name: 'Latest result' })).not.toBeInTheDocument();
+  await user.click(screen.getByRole('tab', { name: 'Generate' }));
+  const again = await screen.findByRole('group', { name: 'Latest result' });
+  expect(await within(again).findAllByRole('img', { name: 'Result: a blue owl' })).toHaveLength(2);
+});
+
+it('a failed run shows no result images and a fresh tab does not resurrect it', async () => {
+  stubFetch(() => jsonResponse({ error: { code: 400, message: 'Prompt was refused' } }));
+  await updateSettings({ openRouterApiKey: 'sk', imageModel: 'openai/gpt-image-1' });
+  render(<App />);
+  const user = userEvent.setup();
+  await screen.findByRole('combobox', { name: 'Aspect ratio' });
+  await user.type(screen.getByLabelText('Prompt'), 'x');
+  await user.click(screen.getByRole('button', { name: 'Generate' }));
+  expect(await screen.findByText(/Run failed/)).toBeInTheDocument();
+  expect(screen.queryByRole('group', { name: 'Latest result' })).not.toBeInTheDocument();
+  await user.click(screen.getByRole('tab', { name: 'Gallery' }));
+  await user.click(screen.getByRole('tab', { name: 'Generate' }));
+  await screen.findByLabelText('Prompt');
+  expect(screen.queryByText(/Run failed/)).not.toBeInTheDocument();
+});
