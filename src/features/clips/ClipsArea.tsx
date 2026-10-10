@@ -25,7 +25,7 @@ const COPY = {
   sound: {
     formTitle: 'New sound',
     textLabel: 'Describe the sound',
-    placeholder: 'Heavy wooden door creaking open slowly, then slamming shut in a stone hall…',
+    placeholder: 'a heavy wooden door creaking open slowly, then slamming shut in a stone hall',
     button: 'Make sound',
     working: 'Making the sound…',
     done: 'Your sound is ready',
@@ -34,7 +34,7 @@ const COPY = {
     noun: 'sound',
     emptyTitle: 'No sounds yet.',
     emptyHint: 'Describe what should be heard — the source, the space, how long, how loud.',
-    note: 'OpenRouter has no dedicated sound-effects model. Its speech models read your text; ByteDance Seed Audio 1.0 is the one that also renders described sound effects, so pick it in Settings for sounds.',
+    note: 'OpenRouter has no dedicated sound-effects model. Its speech models read your text; ByteDance Seed Audio 1.0 is the one that also renders described sound effects, so pick it in Settings for sounds. It makes the sound only when the text starts like "The sound of …" (otherwise it speaks the words), hence the prefix.',
   },
   voice: {
     formTitle: 'New voice clip',
@@ -51,6 +51,14 @@ const COPY = {
     note: null,
   },
 } as const;
+
+/**
+ * The Sounds form's default prefix (docs/17 row 61). Seed Audio speaks "a
+ * fireball" aloud but renders "The sound of a fireball" as the sound — the
+ * owner's live test. The prefix is an editable field, and the exact text sent
+ * is shown, so nothing is added behind the owner's back.
+ */
+export const SOUND_PREFIX = 'The sound of ';
 
 /** The options a clip was made with, in one line. */
 function requestSummary(request: ClipRequest): string {
@@ -81,9 +89,12 @@ function ClipForm({
 }>): React.JSX.Element {
   const copy = COPY[kind];
   const [text, setText] = useState('');
+  const [prefix, setPrefix] = useState(SOUND_PREFIX);
   const [voice, setVoice] = useState('');
   const [instructions, setInstructions] = useState('');
   const [working, setWorking] = useState(false);
+  // The exact text sent: for a sound, the editable prefix + the description.
+  const sent = kind === 'sound' && text.trim() !== '' ? `${prefix}${text.trim()}` : text.trim();
   const blocked = clipBlockReason(state, kind, text);
   const voices = model === undefined ? [] : voicesOf(model);
   const textId = `${kind}-text`;
@@ -92,7 +103,7 @@ function ClipForm({
     if (model === undefined) return;
     const request: ClipRequest = {
       model: model.id,
-      text: text.trim(),
+      text: sent,
       voice: kind === 'voice' && voice.trim() !== '' ? voice.trim() : null,
       instructions: kind === 'voice' && instructions.trim() !== '' ? instructions.trim() : null,
     };
@@ -121,6 +132,18 @@ function ClipForm({
           : `With ${model.name} (${model.id}). Change it in Settings.`}
       </p>
       {copy.note !== null && <p className="text-caption text-muted">{copy.note}</p>}
+      {kind === 'sound' && (
+        <label className="flex flex-col gap-1">
+          <span className="text-label text-ink">Prefix</span>
+          <input
+            className="field focus-visible:field-focus hover:field-hover"
+            value={prefix}
+            onChange={(e) => {
+              setPrefix(e.target.value);
+            }}
+          />
+        </label>
+      )}
       <label htmlFor={textId} className="text-label text-ink">
         {copy.textLabel}
       </label>
@@ -134,6 +157,11 @@ function ClipForm({
           setText(e.target.value);
         }}
       />
+      {kind === 'sound' && sent !== '' && (
+        <p className="text-caption text-muted">
+          Sent as: <span className="text-ink">{sent}</span>
+        </p>
+      )}
       {kind === 'voice' && model !== undefined && (
         <>
           <label className="flex flex-col gap-1">

@@ -108,16 +108,34 @@ it('the Sounds tab sends only the description, and its clips stay off the Voice 
 
   expect(await screen.findByText(/no dedicated sound-effects model/)).toBeInTheDocument();
   expect(screen.queryByLabelText('Voice')).toBeNull();
-  await user.type(screen.getByLabelText('Describe the sound'), 'A door creaks');
+  // The editable prefix (docs/17 row 61) is in front of the description, and
+  // the exact text sent is shown before anything is sent.
+  expect(screen.getByLabelText('Prefix')).toHaveValue('The sound of ');
+  await user.type(screen.getByLabelText('Describe the sound'), 'a door creaking');
+  expect(screen.getByText('The sound of a door creaking')).toBeInTheDocument();
   await user.click(screen.getByRole('button', { name: 'Make sound' }));
-  await within(await screen.findByRole('region', { name: 'Sounds' })).findByText('A door creaks');
+  const sounds = await screen.findByRole('region', { name: 'Sounds' });
+  await within(sounds).findByText('The sound of a door creaking');
   expect(speechBodies).toEqual([
-    { model: 'bytedance-seed/seed-audio-1-0', input: 'A door creaks', response_format: 'mp3' },
+    {
+      model: 'bytedance-seed/seed-audio-1-0',
+      input: 'The sound of a door creaking',
+      response_format: 'mp3',
+    },
   ]);
+
+  // Edited, the prefix is sent exactly as written.
+  await user.clear(screen.getByLabelText('Prefix'));
+  await user.type(screen.getByLabelText('Prefix'), 'Foley: ');
+  await user.clear(screen.getByLabelText('Describe the sound'));
+  await user.type(screen.getByLabelText('Describe the sound'), 'rain');
+  await user.click(screen.getByRole('button', { name: 'Make sound' }));
+  await within(sounds).findByText('Foley: rain');
+  expect(speechBodies[1]?.input).toBe('Foley: rain');
 
   await user.click(screen.getByRole('tab', { name: 'Voice' }));
   expect(await screen.findByText('No voice clips yet.')).toBeInTheDocument();
-  expect(screen.queryByText('A door creaks')).toBeNull();
+  expect(screen.queryByText('The sound of a door creaking')).toBeNull();
 });
 
 it('no model picked is a visible blocker, never a substituted model', async () => {
