@@ -34,6 +34,7 @@ const VIDEO: StoredVideo = {
     aspectRatio: '16:9',
     generateAudio: true,
     firstFrameImageId: null,
+    lastFrameImageId: null,
   },
   costUsd: 2.4,
   createdAt: 1_700_000_000_000,

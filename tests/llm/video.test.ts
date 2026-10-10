@@ -4,6 +4,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { OpenRouterError } from '@/llm/errors';
 import {
   acceptsFirstFrame,
+  acceptsLastFrame,
   canGenerateVideoAudio,
   downloadVideo,
   listVideoModels,
@@ -48,11 +49,12 @@ it('lists the video models from GET /videos/models with their limits', async () 
   expect(calls[0]?.url).toBe('https://openrouter.ai/api/v1/videos/models');
   expect(models.map((m) => m.id)).toEqual(['google/veo-3.1', 'alibaba/wan-2.7']);
   const [veo, wan] = models;
-  expect(veo !== undefined && acceptsFirstFrame(veo) && canGenerateVideoAudio(veo)).toBe(true);
-  expect(wan !== undefined && (acceptsFirstFrame(wan) || canGenerateVideoAudio(wan))).toBe(false);
+  expect(veo !== undefined && acceptsFirstFrame(veo) && acceptsLastFrame(veo)).toBe(true);
+  expect(veo !== undefined && canGenerateVideoAudio(veo)).toBe(true);
+  expect(wan !== undefined && (acceptsFirstFrame(wan) || acceptsLastFrame(wan) || canGenerateVideoAudio(wan))).toBe(false);
 });
 
-it('submits ONLY the options that were set, and the first frame as a frame image', async () => {
+it('submits ONLY the options that were set, and the start/end images as frame images', async () => {
   answer(() => jsonResponse({ id: 'job-1', polling_url: 'x', status: 'pending' }, 202));
   await expect(
     submitVideo({
@@ -64,6 +66,7 @@ it('submits ONLY the options that were set, and the first frame as a frame image
       aspectRatio: '16:9',
       generateAudio: false,
       firstFrameDataUrl: 'data:image/png;base64,AAAA',
+      lastFrameDataUrl: 'data:image/png;base64,BBBB',
     }),
   ).resolves.toBe('job-1');
   expect(calls[0]?.url).toBe('https://openrouter.ai/api/v1/videos');
@@ -79,6 +82,11 @@ it('submits ONLY the options that were set, and the first frame as a frame image
         image_url: { url: 'data:image/png;base64,AAAA' },
         frame_type: 'first_frame',
       },
+      {
+        type: 'image_url',
+        image_url: { url: 'data:image/png;base64,BBBB' },
+        frame_type: 'last_frame',
+      },
     ],
   });
 
@@ -92,8 +100,26 @@ it('submits ONLY the options that were set, and the first frame as a frame image
     aspectRatio: null,
     generateAudio: null,
     firstFrameDataUrl: null,
+    lastFrameDataUrl: null,
   });
   expect(JSON.parse(bodyOf(calls[0]))).toEqual({ model: 'alibaba/wan-2.7', prompt: 'rain' });
+
+  // An end image alone is sent alone.
+  calls = [];
+  await submitVideo({
+    apiKey: 'sk',
+    model: 'google/veo-3.1',
+    prompt: 'land here',
+    duration: null,
+    resolution: null,
+    aspectRatio: null,
+    generateAudio: null,
+    firstFrameDataUrl: null,
+    lastFrameDataUrl: 'data:image/png;base64,CCCC',
+  });
+  expect(JSON.parse(bodyOf(calls[0]))).toMatchObject({
+    frame_images: [{ image_url: { url: 'data:image/png;base64,CCCC' }, frame_type: 'last_frame' }],
+  });
 });
 
 it('reads each job status, and never takes an unknown one for "still working"', async () => {

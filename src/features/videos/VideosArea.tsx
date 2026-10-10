@@ -15,7 +15,12 @@ import {
   videoBlockReason,
   type VideoPanelState,
 } from '@/features/videos/useVideos';
-import { acceptsFirstFrame, canGenerateVideoAudio, type VideoModel } from '@/llm/video';
+import {
+  acceptsFirstFrame,
+  acceptsLastFrame,
+  canGenerateVideoAudio,
+  type VideoModel,
+} from '@/llm/video';
 import { toError } from '@/lib/errors';
 import { toastError, toastSuccess } from '@/lib/toast';
 import { useObjectUrl } from '@/lib/useObjectUrl';
@@ -38,10 +43,21 @@ function requestSummary(request: VideoRequest): string {
     request.resolution ?? 'default resolution',
     request.aspectRatio ?? 'default aspect',
     request.generateAudio === null ? null : request.generateAudio ? 'with audio' : 'no audio',
-    request.firstFrameImageId === null ? null : 'from an image',
+    request.firstFrameImageId === null ? null : 'from a start image',
+    request.lastFrameImageId === null ? null : 'to an end image',
   ]
     .filter((part) => part !== null)
     .join(' · ');
+}
+
+/** What the picked model can start from, in one sentence. */
+function sourceLine(model: VideoModel): string {
+  const start = acceptsFirstFrame(model);
+  const end = acceptsLastFrame(model);
+  if (start && end) return 'This model takes text, plus an optional start image and/or end image.';
+  if (start) return 'This model takes text, plus an optional start image (no end image).';
+  if (end) return 'This model takes text, plus an optional end image (no start image).';
+  return 'This model takes text only (no start or end image).';
 }
 
 /* ------------------------------------------------------------ the form */
@@ -84,14 +100,20 @@ function OptionSelect({
 function ImageChoice({
   image,
   selected,
+  which,
   onPick,
-}: Readonly<{ image: StoredImage; selected: boolean; onPick: () => void }>): React.JSX.Element {
+}: Readonly<{
+  image: StoredImage;
+  selected: boolean;
+  which: string;
+  onPick: () => void;
+}>): React.JSX.Element {
   const url = useImageUrl(image);
   return (
     <button
       type="button"
       aria-pressed={selected}
-      aria-label={`Use as first frame: ${image.prompt}`}
+      aria-label={`Use as ${which}: ${image.prompt}`}
       className={`aspect-square overflow-hidden rounded-md bg-subtle ${focusRing} ${
         selected ? 'ring-2 ring-accent' : ''
       }`}
@@ -103,13 +125,20 @@ function ImageChoice({
 }
 
 /**
- * The optional first frame: a gallery image the video starts from. Offered only
- * when the picked model lists `first_frame` among its supported frame images.
+ * An optional frame image from the gallery: the start image (`first_frame`) or
+ * the end image (`last_frame`). Each is offered only when the picked model
+ * lists that frame type among its supported frame images.
  */
-function FirstFramePicker({
+function FramePicker({
+  which,
   imageId,
   onChange,
-}: Readonly<{ imageId: string | null; onChange: (id: string | null) => void }>): React.JSX.Element {
+}: Readonly<{
+  /** "start image" or "end image" — the label, and the accessible names. */
+  which: string;
+  imageId: string | null;
+  onChange: (id: string | null) => void;
+}>): React.JSX.Element {
   const [images, setImages] = useState<StoredImage[] | null>(null);
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<StoredImage | null>(null);
@@ -145,9 +174,11 @@ function FirstFramePicker({
 
   return (
     <div className="flex flex-col gap-2">
-      <span className="text-label text-ink">First frame (optional)</span>
+      <span className="text-label text-ink">
+        {which.charAt(0).toUpperCase() + which.slice(1)} (optional)
+      </span>
       <div className="flex flex-wrap items-center gap-2">
-        {selected !== null && <SelectedFrame image={selected} />}
+        {selected !== null && <SelectedFrame image={selected} which={which} />}
         <button
           type="button"
           className={buttonClass('secondary')}
@@ -155,11 +186,12 @@ function FirstFramePicker({
             setOpen((v) => !v);
           }}
         >
-          {open ? 'Close the gallery' : selected === null ? 'Start from a gallery image…' : 'Change image…'}
+          {open ? 'Close the gallery' : selected === null ? `Choose the ${which}…` : `Change the ${which}…`}
         </button>
         {selected !== null && (
           <button
             type="button"
+            aria-label={`Remove the ${which}`}
             className={buttonClass('ghost', focusRing)}
             onClick={() => {
               onChange(null);
@@ -181,6 +213,7 @@ function FirstFramePicker({
                 key={image.id}
                 image={image}
                 selected={image.id === imageId}
+                which={which}
                 onPick={() => {
                   onChange(image.id);
                   setOpen(false);
@@ -193,14 +226,17 @@ function FirstFramePicker({
   );
 }
 
-function SelectedFrame({ image }: Readonly<{ image: StoredImage }>): React.JSX.Element {
+function SelectedFrame({
+  image,
+  which,
+}: Readonly<{ image: StoredImage; which: string }>): React.JSX.Element {
   const url = useImageUrl(image);
   return url === null ? (
     <span className="text-caption text-muted">Loading…</span>
   ) : (
     <img
       src={url}
-      alt={`First frame: ${image.prompt}`}
+      alt={`${which}: ${image.prompt}`}
       className="h-16 w-16 rounded-md border border-strong object-cover"
     />
   );
@@ -227,6 +263,7 @@ function VideoForm({
   // The API's own default for an audio-capable model is ON; the box starts there.
   const [audio, setAudio] = useState(true);
   const [firstFrameId, setFirstFrameId] = useState<string | null>(null);
+  const [lastFrameId, setLastFrameId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const blocked = videoBlockReason(state, prompt);
 
@@ -240,6 +277,7 @@ function VideoForm({
       aspectRatio: aspectRatio === '' ? null : aspectRatio,
       generateAudio: canGenerateVideoAudio(model) ? audio : null,
       firstFrameImageId: acceptsFirstFrame(model) ? firstFrameId : null,
+      lastFrameImageId: acceptsLastFrame(model) ? lastFrameId : null,
     };
     setSubmitting(true);
     startVideo({ apiKey: state.settings.openRouterApiKey, request })
@@ -320,8 +358,17 @@ function VideoForm({
           <span className="text-label text-ink">Generate audio with the video</span>
         </label>
       )}
+      {model !== undefined && (
+        <p className="text-caption text-muted">
+          {sourceLine(model)} OpenRouter's video API takes no video as input, so a video cannot be a
+          source.
+        </p>
+      )}
       {model !== undefined && acceptsFirstFrame(model) && (
-        <FirstFramePicker imageId={firstFrameId} onChange={setFirstFrameId} />
+        <FramePicker which="start image" imageId={firstFrameId} onChange={setFirstFrameId} />
+      )}
+      {model !== undefined && acceptsLastFrame(model) && (
+        <FramePicker which="end image" imageId={lastFrameId} onChange={setLastFrameId} />
       )}
       <div className="flex flex-wrap items-center gap-2">
         <button

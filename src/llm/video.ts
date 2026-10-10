@@ -6,7 +6,8 @@
  * (openrouter.ai/docs/guides/overview/multimodal/video-generation):
  *   - `POST /videos` with `model`, `prompt` and optional `duration` (seconds),
  *     `resolution`, `aspect_ratio`, `generate_audio`, `frame_images`
- *     (`[{ type: 'image_url', image_url: { url }, frame_type: 'first_frame' }]`)
+ *     (`[{ type: 'image_url', image_url: { url }, frame_type: 'first_frame' | 'last_frame' }]`)
+ *     — there is NO video input field (no video-to-video), only images —
  *     answers 202 with `{ id, polling_url, status: 'pending' }`;
  *   - `GET /videos/{id}` reports `status` (`pending` | `in_progress` |
  *     `completed` | `failed`; webhooks add `cancelled` | `expired`), `error` on
@@ -77,6 +78,11 @@ export function acceptsFirstFrame(model: VideoModel): boolean {
   return model.supported_frame_images?.includes('first_frame') ?? false;
 }
 
+/** The model can end on a given last frame. */
+export function acceptsLastFrame(model: VideoModel): boolean {
+  return model.supported_frame_images?.includes('last_frame') ?? false;
+}
+
 /** The model can make a soundtrack with the video. */
 export function canGenerateVideoAudio(model: VideoModel): boolean {
   return model.generate_audio === true;
@@ -93,8 +99,9 @@ export interface VideoSubmitRequest {
   resolution: string | null;
   aspectRatio: string | null;
   generateAudio: boolean | null;
-  /** A `data:` URL for the first frame, or null for text-to-video. */
+  /** `data:` URLs for the start and end frames; null = not sent. */
   firstFrameDataUrl: string | null;
+  lastFrameDataUrl: string | null;
   signal?: AbortSignal | undefined;
 }
 
@@ -103,6 +110,14 @@ const submitResponseSchema = z.looseObject({ id: z.string().min(1) });
 /** Start a job; resolves with OpenRouter's job id. */
 export async function submitVideo(req: VideoSubmitRequest): Promise<string> {
   if (req.apiKey === '') throw new MissingApiKeyError();
+  const frameImages = [
+    ...(req.firstFrameDataUrl === null
+      ? []
+      : [{ ...imageUrlPart(req.firstFrameDataUrl), frame_type: 'first_frame' }]),
+    ...(req.lastFrameDataUrl === null
+      ? []
+      : [{ ...imageUrlPart(req.lastFrameDataUrl), frame_type: 'last_frame' }]),
+  ];
   const response = await fetchWithRetries('/videos', {
     method: 'POST',
     headers: openRouterHeaders(req.apiKey),
@@ -113,11 +128,7 @@ export async function submitVideo(req: VideoSubmitRequest): Promise<string> {
       ...(req.resolution === null ? {} : { resolution: req.resolution }),
       ...(req.aspectRatio === null ? {} : { aspect_ratio: req.aspectRatio }),
       ...(req.generateAudio === null ? {} : { generate_audio: req.generateAudio }),
-      ...(req.firstFrameDataUrl === null
-        ? {}
-        : {
-            frame_images: [{ ...imageUrlPart(req.firstFrameDataUrl), frame_type: 'first_frame' }],
-          }),
+      ...(frameImages.length === 0 ? {} : { frame_images: frameImages }),
     }),
     ...(req.signal === undefined ? {} : { signal: req.signal }),
   });

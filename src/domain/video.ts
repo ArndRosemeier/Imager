@@ -22,8 +22,13 @@ export const videoRequestSchema = z.strictObject({
   aspectRatio: z.string().nullable(),
   /** null = not sent (the model cannot make audio, or it was not offered). */
   generateAudio: z.boolean().nullable(),
-  /** The gallery image sent as the first frame; null = text-to-video. */
+  /** The gallery image the video STARTS from; null = none. */
   firstFrameImageId: z.string().nullable(),
+  /**
+   * The gallery image the video ENDS on; null = none. `.default(null)` so a
+   * request stored before end frames existed reads as "no end frame".
+   */
+  lastFrameImageId: z.string().nullable().default(null),
 });
 export type VideoRequest = z.infer<typeof videoRequestSchema>;
 

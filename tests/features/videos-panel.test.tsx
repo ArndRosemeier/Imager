@@ -115,6 +115,7 @@ it('a job stored earlier (a reload, a tab switch) is picked up and finished', as
       aspectRatio: null,
       generateAudio: null,
       firstFrameImageId: null,
+      lastFrameImageId: null,
     },
     status: 'in_progress',
     error: null,
@@ -137,6 +138,7 @@ function storedJob(id: string, status: VideoJob['status']): VideoJob {
       aspectRatio: null,
       generateAudio: true,
       firstFrameImageId: null,
+      lastFrameImageId: null,
     },
     status,
     error: status === 'failed' ? 'earlier failure' : null,
@@ -172,6 +174,61 @@ it('Dismiss removes a failed job', async () => {
     await expect(db.videoJobs.count()).resolves.toBe(0);
   });
   expect(screen.queryByRole('region', { name: 'Video jobs' })).toBeNull();
+});
+
+it('a start image AND an end image from the gallery are sent as the two frame images', async () => {
+  await updateSettings({ openRouterApiKey: 'sk', videoModel: 'google/veo-3.1' });
+  const png = (n: number): Uint8Array<ArrayBuffer> => new Uint8Array([0x89, 0x50, 0x4e, 0x47, n]);
+  const image = (id: string, prompt: string, n: number) => ({
+    id,
+    bytes: png(n),
+    mimeType: 'image/png',
+    width: 100,
+    height: 100,
+    prompt,
+    model: 'm/x',
+    source: 'generated' as const,
+    createdAt: n,
+    runId: 'r',
+    favorite: false,
+    tags: [],
+  });
+  await db.images.bulkPut([image('img-a', 'a meadow', 1), image('img-b', 'a cliff', 2)]);
+  // Both already fit the reference cap, so the bytes go out unchanged.
+  vi.stubGlobal('createImageBitmap', () =>
+    Promise.resolve({ width: 100, height: 100, close: () => undefined }),
+  );
+  render(<VideosArea pollIntervalMs={60_000} />);
+  const user = userEvent.setup();
+  expect(
+    await screen.findByText(/This model takes text, plus an optional start image and\/or end image\./),
+  ).toBeInTheDocument();
+  await user.type(screen.getByLabelText('Prompt'), 'Walk from the meadow to the cliff');
+  await user.click(screen.getByRole('button', { name: 'Choose the start image…' }));
+  await user.click(await screen.findByRole('button', { name: 'Use as start image: a meadow' }));
+  await user.click(screen.getByRole('button', { name: 'Choose the end image…' }));
+  await user.click(await screen.findByRole('button', { name: 'Use as end image: a cliff' }));
+  await user.click(screen.getByRole('button', { name: 'Generate video' }));
+  await waitFor(() => {
+    expect(submits).toHaveLength(1);
+  });
+  const toUrl = (n: number): string => `data:image/png;base64,${btoa(String.fromCharCode(0x89, 0x50, 0x4e, 0x47, n))}`;
+  expect(submits[0]?.frame_images).toEqual([
+    { type: 'image_url', image_url: { url: toUrl(1) }, frame_type: 'first_frame' },
+    { type: 'image_url', image_url: { url: toUrl(2) }, frame_type: 'last_frame' },
+  ]);
+  await expect(db.videoJobs.get('job-1')).resolves.toMatchObject({
+    request: { firstFrameImageId: 'img-a', lastFrameImageId: 'img-b' },
+  });
+});
+
+it('a model without frame images offers text only, and says a video cannot be a source', async () => {
+  await updateSettings({ openRouterApiKey: 'sk', videoModel: 'alibaba/wan-2.7' });
+  render(<VideosArea pollIntervalMs={60_000} />);
+  expect(
+    await screen.findByText(/This model takes text only \(no start or end image\)\. OpenRouter's video API takes no video as input/),
+  ).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /Choose the/ })).toBeNull();
 });
 
 it('without a video model nothing can be generated, and the reason is shown', async () => {

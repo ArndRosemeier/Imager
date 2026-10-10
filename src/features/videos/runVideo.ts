@@ -22,15 +22,17 @@ export async function startVideo({
   request: VideoRequest;
   decode?: ImageDecoder;
 }): Promise<VideoJob> {
-  let firstFrameDataUrl: string | null = null;
-  if (request.firstFrameImageId !== null) {
-    const image = await getImage(request.firstFrameImageId);
+  const frameDataUrl = async (imageId: string | null, which: string): Promise<string | null> => {
+    if (imageId === null) return null;
+    const image = await getImage(imageId);
     if (image === undefined) {
-      throw new Error('The first-frame image is no longer in the gallery — pick another one.');
+      throw new Error(`The ${which} image is no longer in the gallery — pick another one.`);
     }
     // The SAME reference prep every other image upload uses (≤1024 px edge).
-    firstFrameDataUrl = (await prepareReference(imageBlob(image), decode)).dataUrl;
-  }
+    return (await prepareReference(imageBlob(image), decode)).dataUrl;
+  };
+  const firstFrameDataUrl = await frameDataUrl(request.firstFrameImageId, 'start');
+  const lastFrameDataUrl = await frameDataUrl(request.lastFrameImageId, 'end');
   const jobId = await submitVideo({
     apiKey,
     model: request.model,
@@ -40,6 +42,7 @@ export async function startVideo({
     aspectRatio: request.aspectRatio,
     generateAudio: request.generateAudio,
     firstFrameDataUrl,
+    lastFrameDataUrl,
   });
   const job: VideoJob = { id: jobId, request, status: 'pending', error: null, createdAt: Date.now() };
   try {

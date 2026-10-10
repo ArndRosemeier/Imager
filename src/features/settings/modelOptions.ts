@@ -6,7 +6,12 @@ import {
   canWriteSongSheet,
   type OpenRouterModel,
 } from '@/llm/models';
-import { acceptsFirstFrame, canGenerateVideoAudio, type VideoModel } from '@/llm/video';
+import {
+  acceptsFirstFrame,
+  acceptsLastFrame,
+  canGenerateVideoAudio,
+  type VideoModel,
+} from '@/llm/video';
 
 /**
  * One row of the picker, whatever list it came from: the general `GET /models`
@@ -50,7 +55,8 @@ export function videoOption(model: VideoModel): ModelOption {
   if (model.supported_resolutions !== null && model.supported_resolutions.length > 0) {
     out.push(model.supported_resolutions.join('/'));
   }
-  if (acceptsFirstFrame(model)) out.push('first frame');
+  if (acceptsFirstFrame(model)) out.push('start image');
+  if (acceptsLastFrame(model)) out.push('end image');
   if (canGenerateVideoAudio(model)) out.push('audio');
   return {
     id: model.id,
