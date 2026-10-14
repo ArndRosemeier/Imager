@@ -109,3 +109,30 @@ it('a model that takes no start image cannot continue a video, and says why', as
     screen.getByText('Alibaba: Wan 2.7 takes no start image, so it cannot continue a video.'),
   ).toBeInTheDocument();
 });
+
+it('a start image can be uploaded from a file: it lands in the gallery and is sent as first_frame', async () => {
+  await updateSettings({ openRouterApiKey: 'sk', videoModel: 'google/veo-3.1' });
+  render(<VideosArea pollIntervalMs={60_000} />);
+  const user = userEvent.setup();
+
+  const file = new File([new Uint8Array(FRAME)], 'my-start.png', { type: 'image/png' });
+  await user.upload(await screen.findByLabelText('Upload the start image from a file'), file);
+
+  expect(await screen.findByAltText('start image: my-start.png')).toBeInTheDocument();
+  const stored = await db.images.toArray();
+  expect(stored).toHaveLength(1);
+  expect(stored[0]).toMatchObject({ prompt: 'my-start.png', source: 'uploaded' });
+
+  await user.type(screen.getByLabelText('Prompt'), 'The scene comes alive');
+  await user.click(screen.getByRole('button', { name: 'Generate video' }));
+  await waitFor(() => {
+    expect(submits).toHaveLength(1);
+  });
+  expect(submits[0]?.frame_images).toEqual([
+    {
+      type: 'image_url',
+      image_url: { url: `data:image/png;base64,${btoa(String.fromCharCode(...FRAME))}` },
+      frame_type: 'first_frame',
+    },
+  ]);
+});

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { EmptyState, SaveButton } from '@/components/ui';
 import { buttonClass, focusRing } from '@/components/styles';
-import { getImage, listImages, saveUploadedImage } from '@/db/imageRepo';
+import { getImage, listImages, saveImageFile, saveUploadedImage } from '@/db/imageRepo';
 import { listTagsInUse } from '@/db/tagRepo';
 import {
   deleteVideo,
@@ -18,6 +18,7 @@ import { TagEditor } from '@/features/gallery/TagEditor';
 import type { StoredImage } from '@/domain/image';
 import { isActiveJob, type StoredVideo, type VideoJob, type VideoRequest } from '@/domain/video';
 import { useImageUrl } from '@/features/gallery/useImageUrl';
+import { IMAGE_ACCEPT } from '@/features/refine/reference';
 import { lastFrameOf } from '@/features/videos/lastFrame';
 import { checkVideoJob, startVideo } from '@/features/videos/runVideo';
 import { videoFileName } from '@/features/videos/videoFile';
@@ -143,9 +144,11 @@ function ImageChoice({
 }
 
 /**
- * An optional frame image from the gallery: the start image (`first_frame`) or
- * the end image (`last_frame`). Each is offered only when the picked model
- * lists that frame type among its supported frame images.
+ * An optional frame image from the gallery or from a file on the device: the
+ * start image (`first_frame`) or the end image (`last_frame`). Each is offered
+ * only when the picked model lists that frame type among its supported frame
+ * images. A file is saved to the gallery first (`saveImageFile`), so the
+ * request refers to a gallery row either way (docs/17 row 63).
  */
 function FramePicker({
   which,
@@ -161,6 +164,26 @@ function FramePicker({
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<StoredImage | null>(null);
   const [loadError, setLoadError] = useState<Error | null>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const onUpload = (file: File): void => {
+    setUploading(true);
+    saveImageFile(file)
+      .then(
+        (image) => {
+          onChange(image.id);
+          setOpen(false);
+          // The gallery list was read before this row existed.
+          setImages(null);
+        },
+        (error: unknown) => {
+          toastError(`Could not use that file as the ${which}`, error);
+        },
+      )
+      .finally(() => {
+        setUploading(false);
+      });
+  };
 
   useEffect(() => {
     if (!open || images !== null) return;
@@ -206,6 +229,23 @@ function FramePicker({
         >
           {open ? 'Close the gallery' : selected === null ? `Choose the ${which}…` : `Change the ${which}…`}
         </button>
+        <label
+          className={`${buttonClass('secondary')} ${uploading ? 'pointer-events-none opacity-60' : 'cursor-pointer'}`}
+        >
+          {uploading ? 'Uploading…' : 'Upload from file…'}
+          <input
+            type="file"
+            accept={IMAGE_ACCEPT}
+            aria-label={`Upload the ${which} from a file`}
+            className="sr-only"
+            disabled={uploading}
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              event.target.value = '';
+              if (file !== undefined) onUpload(file);
+            }}
+          />
+        </label>
         {selected !== null && (
           <button
             type="button"

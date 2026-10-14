@@ -205,6 +205,20 @@ export async function buildGeneratedImages(input: {
 }
 
 /**
+ * THE one way an image FILE from the owner's device becomes a gallery row:
+ * read whole, typed by the file's own MIME type, named by its file name. The
+ * refine source, the chat attachment and the video start/end image all upload
+ * through here (docs/17 row 63).
+ */
+export async function saveImageFile(file: File): Promise<StoredImage> {
+  return saveUploadedImage({
+    bytes: new Uint8Array(await file.arrayBuffer()),
+    mimeType: file.type,
+    fileName: file.name,
+  });
+}
+
+/**
  * Stores an uploaded file as a `StoredImage` in the SAME table as generated
  * images, so it appears in the gallery and can be reused as a refinement
  * source. `runId` is empty: `Run` names a GENERATION run and an upload made

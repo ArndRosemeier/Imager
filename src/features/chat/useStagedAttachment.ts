@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-import { getImage, saveUploadedImage } from '@/db/imageRepo';
+import { getImage, saveImageFile } from '@/db/imageRepo';
 import type { StoredImage } from '@/domain/image';
 import type { ChatAttachRequest } from '@/features/chat/attachRequest';
 import { errorMessage } from '@/lib/errors';
@@ -60,8 +60,7 @@ export function useStagedAttachment(
     setError(null);
     setBusy(true);
     try {
-      const bytes = new Uint8Array(await file.arrayBuffer());
-      add(await saveUploadedImage({ bytes, mimeType: file.type, fileName: file.name }));
+      add(await saveImageFile(file));
     } catch (uploadFailure: unknown) {
       setError(errorMessage(uploadFailure));
       toastError('Could not attach that image', uploadFailure);

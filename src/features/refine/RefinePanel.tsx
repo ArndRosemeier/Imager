@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 import { buttonClass } from '@/components/styles';
-import { getImage, saveUploadedImage } from '@/db/imageRepo';
+import { getImage, saveImageFile } from '@/db/imageRepo';
 import type { StoredImage } from '@/domain/image';
 import { RunStatus } from '@/features/generate/RunStatus';
 import { useLastRun } from '@/features/generate/useLastRun';
@@ -93,12 +93,7 @@ export function RefinePanel({
     setUploadError(null);
     setUploading(true);
     try {
-      const bytes = new Uint8Array(await file.arrayBuffer());
-      const image = await saveUploadedImage({
-        bytes,
-        mimeType: file.type,
-        fileName: file.name,
-      });
+      const image = await saveImageFile(file);
       onSourceChange(image.id);
     } catch (uploadFailure: unknown) {
       setUploadError(errorMessage(uploadFailure));
