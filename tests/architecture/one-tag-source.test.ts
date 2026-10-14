@@ -43,7 +43,7 @@ it('there is NO tags table — the list lives in the image and video rows', () =
   // the rows, so it cannot drift from them — and it is the only `tags` there.
   const db = stripComments(readFileSync('src/db/db.ts', 'utf8'));
   expect(db).not.toMatch(/\btags\s*:/);
-  expect(db.match(/tags/g)).toEqual(['tags', 'tags', 'tags']);
+  expect(db.match(/tags/g)).toEqual(['tags', 'tags', 'tags', 'tags']);
   expect(db).toContain("images: 'id, createdAt, runId, *tags'");
   expect(db).toContain("videos: 'id, createdAt, *tags'");
   expect(db).toContain("clips: 'id, createdAt, kind, *tags'");

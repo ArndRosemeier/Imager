@@ -131,6 +131,13 @@ export class ImagerDb extends Dexie {
     this.version(11).stores({
       clips: 'id, createdAt, kind, *tags',
     });
+    // v12 (no duplicate uploads, docs/17 row 64): an index on the OPTIONAL
+    // `sha256` of an uploaded file's bytes, so a re-upload of the same file is
+    // found by one index read instead of loading every image's bytes. Rows
+    // without the field are simply not in the index; no row is rewritten.
+    this.version(12).stores({
+      images: 'id, createdAt, runId, *tags, sha256',
+    });
   }
 }
 

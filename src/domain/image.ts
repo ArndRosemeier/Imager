@@ -45,6 +45,14 @@ export const storedImageSchema = z.strictObject({
    * in `parseImage`). Entries are the normalized form `normalizeTags` produces.
    */
   tags: z.array(z.string()).default([]),
+  /**
+   * SHA-256 (hex, `sha256Hex`) of the bytes of an image uploaded from a device
+   * FILE (docs/17 row 64). Indexed, so uploading the same file again finds the
+   * row it already made instead of storing a duplicate. OPTIONAL: generated
+   * images and uploads stored before this field have none, and are simply
+   * not matched — absence means "never recorded", not "different".
+   */
+  sha256: z.string().optional(),
 });
 export type StoredImage = z.infer<typeof storedImageSchema>;
 

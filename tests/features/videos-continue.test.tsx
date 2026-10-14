@@ -136,3 +136,28 @@ it('a start image can be uploaded from a file: it lands in the gallery and is se
     },
   ]);
 });
+
+it('uploading the same file again reuses the gallery image instead of storing a duplicate', async () => {
+  await updateSettings({ openRouterApiKey: 'sk', videoModel: 'google/veo-3.1' });
+  render(<VideosArea pollIntervalMs={60_000} />);
+  const user = userEvent.setup();
+  const pick = async (bytes: Uint8Array, name: string): Promise<void> => {
+    const file = new File([new Uint8Array(bytes)], name, { type: 'image/png' });
+    await user.upload(await screen.findByLabelText('Upload the start image from a file'), file);
+  };
+
+  await pick(FRAME, 'first.png');
+  expect(await screen.findByAltText('start image: first.png')).toBeInTheDocument();
+  await pick(FRAME, 'same-bytes-other-name.png');
+  await pick(FRAME, 'first.png');
+  await waitFor(() => {
+    expect(screen.queryByText('Uploading…')).toBeNull();
+  });
+  expect(await db.images.count()).toBe(1);
+  expect(screen.getByAltText('start image: first.png')).toBeInTheDocument();
+
+  // Different bytes are a different picture.
+  await pick(new Uint8Array([...FRAME, 1]), 'other.png');
+  expect(await screen.findByAltText('start image: other.png')).toBeInTheDocument();
+  expect(await db.images.count()).toBe(2);
+});

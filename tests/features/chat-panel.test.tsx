@@ -285,7 +285,10 @@ it('an image-only message is allowed (the picture speaks for itself)', async () 
   const file = new File([new Uint8Array([1, 2, 3])], 'base.png', { type: 'image/png' });
   await user.upload(await screen.findByLabelText('Attach an image'), file);
   const sendButton = screen.getByRole('button', { name: 'Send' });
-  expect(sendButton).toBeEnabled();
+  // Attaching is async (read, hash, store), so the button enables once it lands.
+  await waitFor(() => {
+    expect(sendButton).toBeEnabled();
+  });
   await user.click(sendButton);
   expect(await screen.findByText('Changed it.')).toBeInTheDocument();
   expect(posts).toHaveLength(1);

@@ -235,7 +235,59 @@ it('without a video model nothing can be generated, and the reason is shown', as
   await updateSettings({ openRouterApiKey: 'sk' });
   render(<App initialTab="Videos" />);
   expect(
-    await screen.findByText('No video model selected — pick one in Settings.'),
+    await screen.findByText('No video model selected — pick one above, or a default in Settings.'),
   ).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Generate video' })).toBeDisabled();
+});
+
+it('the tab has its own model selector: Default follows Settings, used models come first, a pick is sent', async () => {
+  await updateSettings({ openRouterApiKey: 'sk', videoModel: 'google/veo-3.1' });
+  // A failed job made with Wan counts as "used" too.
+  const job: VideoJob = {
+    id: 'job-old',
+    request: {
+      model: 'alibaba/wan-2.7',
+      prompt: 'earlier',
+      duration: null,
+      resolution: null,
+      aspectRatio: null,
+      generateAudio: null,
+      firstFrameImageId: null,
+      lastFrameImageId: null,
+    },
+    status: 'failed',
+    error: 'boom',
+    createdAt: 1,
+  };
+  await db.videoJobs.put(job);
+  render(<VideosArea pollIntervalMs={60_000} />);
+  const user = userEvent.setup();
+
+  const select = await screen.findByLabelText<HTMLSelectElement>('Model');
+  await waitFor(() => {
+    expect([...select.options].map((o) => o.textContent)).toEqual([
+      'Default: Google: Veo 3.1',
+      'Alibaba: Wan 2.7 (alibaba/wan-2.7)',
+      'Google: Veo 3.1 (google/veo-3.1)',
+    ]);
+  });
+  expect(within(select).getByRole('group', { name: 'Recently used' })).toHaveTextContent('Wan 2.7');
+
+  await user.type(screen.getByLabelText('Prompt'), 'A kite over the sea');
+  await user.selectOptions(select, 'alibaba/wan-2.7');
+  // Switching the model keeps what was written.
+  expect(screen.getByLabelText('Prompt')).toHaveValue('A kite over the sea');
+  await user.click(screen.getByRole('button', { name: 'Generate video' }));
+  await waitFor(() => {
+    expect(submits).toHaveLength(1);
+  });
+  expect(submits[0]?.model).toBe('alibaba/wan-2.7');
+
+  await user.selectOptions(screen.getByLabelText('Model'), 'Default: Google: Veo 3.1');
+  await user.type(screen.getByLabelText('Prompt'), 'Again');
+  await user.click(screen.getByRole('button', { name: 'Generate video' }));
+  await waitFor(() => {
+    expect(submits).toHaveLength(2);
+  });
+  expect(submits[1]?.model).toBe('google/veo-3.1');
 });

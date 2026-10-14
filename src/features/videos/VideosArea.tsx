@@ -23,9 +23,11 @@ import { lastFrameOf } from '@/features/videos/lastFrame';
 import { checkVideoJob, startVideo } from '@/features/videos/runVideo';
 import { videoFileName } from '@/features/videos/videoFile';
 import {
+  recentVideoModelIds,
   selectedVideoModel,
   useVideoPanel,
   videoBlockReason,
+  videoModelId,
   type VideoPanelState,
 } from '@/features/videos/useVideos';
 import {
@@ -63,11 +65,18 @@ function requestSummary(request: VideoRequest): string {
     .join(' · ');
 }
 
-/** A one-shot request to stage an image as the start image; the nonce makes a repeat a new request. */
-interface StartImageRequest {
-  imageId: string;
-  nonce: number;
+/**
+ * What the owner has written and staged. It lives ABOVE the per-model form, so
+ * trying another model keeps the prompt and the frame images; a frame the new
+ * model does not take is simply not sent (see `submit`).
+ */
+interface VideoDraft {
+  prompt: string;
+  firstFrameId: string | null;
+  lastFrameId: string | null;
 }
+
+const EMPTY_DRAFT: VideoDraft = { prompt: '', firstFrameId: null, lastFrameId: null };
 
 /** What the picked model can start from, in one sentence. */
 function sourceLine(model: VideoModel): string {
@@ -300,6 +309,71 @@ function SelectedFrame({
   );
 }
 
+/** The value the selector uses for "Default" (never a model id: ids contain a `/`). */
+const DEFAULT_CHOICE = '';
+
+/**
+ * The tab's model selector, so trying another model is one pick here instead of
+ * a trip to Settings (docs/17 row 64). "Default" follows the Settings pick; the
+ * models already used for a video come first, most recent first, then every
+ * other model in OpenRouter's order.
+ */
+function VideoModelSelect({
+  state,
+  choice,
+  recentIds,
+  onChoose,
+}: Readonly<{
+  state: VideoPanelState;
+  choice: string | null;
+  recentIds: readonly string[];
+  onChoose: (choice: string | null) => void;
+}>): React.JSX.Element {
+  const models = state.models ?? [];
+  const byId = new Map(models.map((m) => [m.id, m]));
+  const recent = recentIds.flatMap((id) => byId.get(id) ?? []);
+  const others = models.filter((m) => !recentIds.includes(m.id));
+  const defaultId = state.settings.videoModel;
+  const defaultLabel =
+    defaultId === ''
+      ? 'Default (none set in Settings)'
+      : `Default: ${byId.get(defaultId)?.name ?? defaultId}`;
+  // A pick the list no longer has stays visible rather than silently becoming "Default".
+  const orphan = choice !== null && !byId.has(choice) ? choice : null;
+  const option = (m: VideoModel): React.JSX.Element => (
+    <option key={m.id} value={m.id}>
+      {m.name} ({m.id})
+    </option>
+  );
+  return (
+    <div className="flex flex-col gap-1">
+      <label htmlFor="video-model" className="text-label text-ink">
+        Model
+      </label>
+      <select
+        id="video-model"
+        className="field focus-visible:field-focus hover:field-hover"
+        value={choice ?? DEFAULT_CHOICE}
+        onChange={(e) => {
+          onChoose(e.target.value === DEFAULT_CHOICE ? null : e.target.value);
+        }}
+      >
+        <option value={DEFAULT_CHOICE}>{defaultLabel}</option>
+        {orphan !== null && <option value={orphan}>{orphan} (not in the current list)</option>}
+        {recent.length > 0 && <optgroup label="Recently used">{recent.map(option)}</optgroup>}
+        {others.length > 0 && (
+          <optgroup label={recent.length > 0 ? 'Other models' : 'All video models'}>
+            {others.map(option)}
+          </optgroup>
+        )}
+      </select>
+      <span className="text-caption text-muted">
+        "Default" uses the video model chosen in Settings.
+      </span>
+    </div>
+  );
+}
+
 /**
  * The form. It is keyed by the model in the parent, so a different model starts
  * from a clean form — an option one model supports is never carried into a
@@ -307,31 +381,30 @@ function SelectedFrame({
  */
 function VideoForm({
   state,
+  modelId,
   model,
-  startImage,
+  modelSelect,
+  draft,
+  onDraft,
   onSubmitted,
 }: Readonly<{
   state: VideoPanelState;
+  modelId: string;
   model: VideoModel | undefined;
-  /** A one-shot "use this as the start image" (Continue this video). */
-  startImage: StartImageRequest | null;
+  /** The tab's model selector, shown at the top of the form. */
+  modelSelect: React.ReactNode;
+  draft: VideoDraft;
+  onDraft: (patch: Partial<VideoDraft>) => void;
   onSubmitted: () => void;
 }>): React.JSX.Element {
-  const [prompt, setPrompt] = useState('');
+  const { prompt, firstFrameId, lastFrameId } = draft;
   const [duration, setDuration] = useState('');
   const [resolution, setResolution] = useState('');
   const [aspectRatio, setAspectRatio] = useState('');
   // The API's own default for an audio-capable model is ON; the box starts there.
   const [audio, setAudio] = useState(true);
-  const [firstFrameId, setFirstFrameId] = useState<string | null>(null);
-  const [lastFrameId, setLastFrameId] = useState<string | null>(null);
-  useEffect(() => {
-    if (startImage === null) return;
-    setFirstFrameId(startImage.imageId);
-    document.getElementById('video-prompt')?.focus();
-  }, [startImage]);
   const [submitting, setSubmitting] = useState(false);
-  const blocked = videoBlockReason(state, prompt);
+  const blocked = videoBlockReason(state, modelId, prompt);
 
   const submit = (): void => {
     if (model === undefined) return;
@@ -349,7 +422,7 @@ function VideoForm({
     startVideo({ apiKey: state.settings.openRouterApiKey, request })
       .then(
         () => {
-          setPrompt('');
+          onDraft({ prompt: '' });
           onSubmitted();
         },
         (error: unknown) => {
@@ -364,11 +437,7 @@ function VideoForm({
   return (
     <section aria-label="New video" className="card flex flex-col gap-3 p-3">
       <h2 className="text-heading text-ink">New video</h2>
-      <p className="text-caption text-muted">
-        {model === undefined
-          ? 'No video model is ready yet.'
-          : `With ${model.name} (${model.id}). Change it in Settings.`}
-      </p>
+      {modelSelect}
       <label htmlFor="video-prompt" className="text-label text-ink">
         Prompt
       </label>
@@ -379,7 +448,7 @@ function VideoForm({
         placeholder="A slow dolly shot through a rain-soaked neon street at night…"
         value={prompt}
         onChange={(e) => {
-          setPrompt(e.target.value);
+          onDraft({ prompt: e.target.value });
         }}
       />
       {model !== undefined && (
@@ -431,10 +500,22 @@ function VideoForm({
         </p>
       )}
       {model !== undefined && acceptsFirstFrame(model) && (
-        <FramePicker which="start image" imageId={firstFrameId} onChange={setFirstFrameId} />
+        <FramePicker
+          which="start image"
+          imageId={firstFrameId}
+          onChange={(id) => {
+            onDraft({ firstFrameId: id });
+          }}
+        />
       )}
       {model !== undefined && acceptsLastFrame(model) && (
-        <FramePicker which="end image" imageId={lastFrameId} onChange={setLastFrameId} />
+        <FramePicker
+          which="end image"
+          imageId={lastFrameId}
+          onChange={(id) => {
+            onDraft({ lastFrameId: id });
+          }}
+        />
       )}
       <div className="flex flex-wrap items-center gap-2">
         <button
@@ -651,7 +732,9 @@ export function VideosArea({
   const [jobs, setJobs] = useState<VideoJob[] | null>(null);
   const [videos, setVideos] = useState<StoredVideo[] | null>(null);
   const [loadError, setLoadError] = useState<Error | null>(null);
-  const [startImage, setStartImage] = useState<StartImageRequest | null>(null);
+  const [draft, setDraft] = useState<VideoDraft>(EMPTY_DRAFT);
+  /** The tab's model pick; `null` = "Default", the Settings pick. Not persisted. */
+  const [modelChoice, setModelChoice] = useState<string | null>(null);
   /** The tag filter — the gallery's, over the videos (docs/17 row 59). Not persisted. */
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [matchMode, setMatchMode] = useState<TagMatchMode>('AND');
@@ -727,14 +810,15 @@ export function VideosArea({
     return <p className="text-body text-muted">Loading videos…</p>;
   }
 
-  const model = selectedVideoModel(state);
+  const modelId = videoModelId(state, modelChoice);
+  const model = selectedVideoModel(state, modelId);
   const newestFirst = [...videos].reverse();
   // The bar is DERIVED from the video rows, exactly as the gallery derives its own.
   const videoTags = tagCounts(videos);
   const visible = filterImages(newestFirst, selectedTags, matchMode);
   const continueBlocked =
     model === undefined
-      ? 'Pick a video model in Settings to continue a video.'
+      ? 'Pick a video model to continue a video.'
       : acceptsFirstFrame(model)
         ? null
         : `${model.name} takes no start image, so it cannot continue a video.`;
@@ -744,8 +828,20 @@ export function VideosArea({
       <VideoForm
         key={model?.id ?? ''}
         state={state}
+        modelId={modelId}
         model={model}
-        startImage={startImage}
+        modelSelect={
+          <VideoModelSelect
+            state={state}
+            choice={modelChoice}
+            recentIds={recentVideoModelIds([...videos, ...jobs])}
+            onChoose={setModelChoice}
+          />
+        }
+        draft={draft}
+        onDraft={(patch) => {
+          setDraft((prev) => ({ ...prev, ...patch }));
+        }}
         onSubmitted={reload}
       />
       <div className="flex min-w-0 flex-col gap-3">
@@ -806,7 +902,8 @@ export function VideosArea({
                   video={video}
                   continueBlocked={continueBlocked}
                   onContinue={(imageId) => {
-                    setStartImage((prev) => ({ imageId, nonce: (prev?.nonce ?? 0) + 1 }));
+                    setDraft((prev) => ({ ...prev, firstFrameId: imageId }));
+                    document.getElementById('video-prompt')?.focus();
                   }}
                   tagsInUse={tagsInUse}
                   onSetTags={(next) => setVideoTags(video.id, next).then(reload)}

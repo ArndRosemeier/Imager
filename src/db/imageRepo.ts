@@ -8,6 +8,7 @@ import {
 } from '@/domain/image';
 import { normalizeTags } from '@/domain/tags';
 import { imageSize } from '@/lib/imageSize';
+import { sha256Hex } from '@/lib/sha256';
 
 /**
  * zod at the read boundary: a corrupt row THROWS (rule 1/3).
@@ -159,6 +160,8 @@ export interface UploadInput {
   bytes: Uint8Array<ArrayBuffer>;
   mimeType: string;
   fileName: string;
+  /** The bytes' SHA-256, recorded for a device file (see `saveImageFile`). */
+  sha256?: string;
 }
 
 export interface GeneratedImageInput {
@@ -209,13 +212,17 @@ export async function buildGeneratedImages(input: {
  * read whole, typed by the file's own MIME type, named by its file name. The
  * refine source, the chat attachment and the video start/end image all upload
  * through here (docs/17 row 63).
+ *
+ * NO DUPLICATES (docs/17 row 64): the bytes' SHA-256 is recorded on the row,
+ * and a file whose bytes an earlier upload already stored returns THAT row —
+ * the same picture picked again is the same gallery image, not a new one.
  */
 export async function saveImageFile(file: File): Promise<StoredImage> {
-  return saveUploadedImage({
-    bytes: new Uint8Array(await file.arrayBuffer()),
-    mimeType: file.type,
-    fileName: file.name,
-  });
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const sha256 = await sha256Hex(bytes);
+  const existing = await db.images.where('sha256').equals(sha256).first();
+  if (existing !== undefined) return parseImage(existing);
+  return saveUploadedImage({ bytes, mimeType: file.type, fileName: file.name, sha256 });
 }
 
 /**
@@ -249,6 +256,7 @@ export async function saveUploadedImage(
     // An upload is untagged until the owner tags it, exactly like a generated
     // image.
     tags: [],
+    ...(input.sha256 === undefined ? {} : { sha256: input.sha256 }),
   };
   await db.images.put(storedImageSchema.parse(image));
   return image;
