@@ -52,7 +52,7 @@ it('Test key: 401 surfaces a visible error', async () => {
   );
   await user.click(screen.getByRole('button', { name: 'Test key' }));
   expect(await screen.findByText('API key test failed')).toBeInTheDocument();
-  expect(await screen.findByText(/401.*User not found/)).toBeInTheDocument();
+  expect(await screen.findByText(/401.*User not found.*did not accept this API key/)).toBeInTheDocument();
 });
 
 it('Test key: 200 surfaces a visible success', async () => {
@@ -67,6 +67,24 @@ it('Test key: 200 surfaces a visible success', async () => {
   );
   await user.click(screen.getByRole('button', { name: 'Test key' }));
   expect(await screen.findByText('API key is valid')).toBeInTheDocument();
+});
+
+it.each([
+  [{ is_management_key: true }, /management key/],
+  [{ is_management_key: false, expires_at: '2020-01-01T00:00:00Z' }, /expired on 2020-01-01/],
+])('Test key: a 200 for a key that cannot generate is a failure (%o)', async (extra, message) => {
+  stubFetch(() =>
+    jsonResponse({ data: { label: 'k', limit_remaining: null, usage: 0, ...extra } }),
+  );
+  render(<App initialTab="Settings" />);
+  const user = userEvent.setup();
+  await user.type(
+    await screen.findByLabelText('OpenRouter API key', { selector: 'input' }),
+    'sk-mgmt',
+  );
+  await user.click(screen.getByRole('button', { name: 'Test key' }));
+  expect(await screen.findByText('API key test failed')).toBeInTheDocument();
+  expect(await screen.findByText(message)).toBeInTheDocument();
 });
 
 it('a /models failure is a visible error, not an empty picker', async () => {

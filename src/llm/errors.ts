@@ -13,6 +13,16 @@ export type OpenRouterErrorKind =
   /** A 200 whose body failed zod validation at the boundary (rule 3). */
   | 'invalid-response';
 
+/**
+ * OpenRouter answers EVERY rejected key with the same bare 401 — usually
+ * "User not found." — whether the key is deleted, expired, mistyped or a
+ * management key (which `GET /key` accepts but no generation endpoint does).
+ * The message alone sends the user looking at their account, so every 401
+ * says what it actually means, in this ONE place for every endpoint.
+ */
+export const UNAUTHORIZED_HINT =
+  ' — OpenRouter did not accept this API key. Use "Test key" in Settings; if the key is expired, deleted or a management key, create a normal API key at openrouter.ai/settings/keys and paste it in.';
+
 export class OpenRouterError extends Error {
   readonly kind: OpenRouterErrorKind;
   readonly status: number;
@@ -22,7 +32,10 @@ export class OpenRouterError extends Error {
 
   constructor(kind: OpenRouterErrorKind, status: number, bodyText: string, code?: number | string) {
     const snippet = bodyText.length > 200 ? bodyText.slice(0, 200) + '…' : bodyText;
-    super(`OpenRouter request failed (${String(status)})${snippet === '' ? '' : `: ${snippet}`}`);
+    super(
+      `OpenRouter request failed (${String(status)})${snippet === '' ? '' : `: ${snippet}`}` +
+        (kind === 'http' && status === 401 ? UNAUTHORIZED_HINT : ''),
+    );
     this.name = 'OpenRouterError';
     this.kind = kind;
     this.status = status;
