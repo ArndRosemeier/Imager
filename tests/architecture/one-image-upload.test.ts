@@ -16,7 +16,14 @@ it('ONE place reads an uploaded image file into the gallery', () => {
   expect(filesContaining('saveImageFile(').sort()).toEqual([
     'src/db/imageRepo.ts',
     'src/features/chat/useStagedAttachment.ts',
+    'src/features/gallery/useImageImport.ts',
     'src/features/refine/RefinePanel.tsx',
     'src/features/videos/VideosArea.tsx',
+  ]);
+});
+
+it('ONE place takes a pasted image: the gallery import hook (docs/17 row 65)', () => {
+  expect(filesContaining("addEventListener('paste'")).toEqual([
+    'src/features/gallery/useImageImport.ts',
   ]);
 });

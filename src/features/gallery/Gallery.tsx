@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { EmptyState, CopyButton, FavoriteButton, SaveButton, Segmented } from '@/components/ui';
 import { buttonClass } from '@/components/styles';
@@ -10,7 +10,9 @@ import { imageFileName } from '@/features/export/exportLibrary';
 import { GALLERY_GRID_CLASS, GALLERY_SIZES, useGallerySize } from '@/features/gallery/gallerySize';
 import { TagBar } from '@/features/gallery/TagBar';
 import { TagEditor } from '@/features/gallery/TagEditor';
+import { useImageImport, useImagePaste } from '@/features/gallery/useImageImport';
 import { useImageUrl } from '@/features/gallery/useImageUrl';
+import { IMAGE_ACCEPT } from '@/features/refine/reference';
 import { StorePushButton } from '@/features/store/StorePushButton';
 import type { StorePushApi } from '@/features/store/storePush';
 import { toError } from '@/lib/errors';
@@ -285,6 +287,12 @@ export function Gallery({
   const [size, setSize] = useGallerySize();
   /** Every tag in use on images AND videos — the editor's suggestions (docs/17 row 59). */
   const [tagsInUse, setTagsInUse] = useState<string[]>([]);
+  const knownIds = useMemo(() => new Set((images ?? []).map((i) => i.id)), [images]);
+  const reload = useCallback((): void => {
+    setLocalVersion((v) => v + 1);
+  }, []);
+  const { importFiles, importing } = useImageImport(knownIds, reload);
+  useImagePaste(importFiles);
   useEffect(() => {
     listImages().then(setImages, (error: unknown) => {
       setLoadError(toError(error));
@@ -327,6 +335,33 @@ export function Gallery({
   const visible = filterImages(images, selectedTags, matchMode);
   return (
     <section aria-label="Gallery" className="min-w-0 flex-1">
+      {/*
+        Import (docs/17 row 65): always present, also in an empty gallery. A
+        picked file and a pasted image take the same path (`useImageImport`).
+      */}
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <label
+          className={`${buttonClass('secondary')} ${importing ? 'pointer-events-none opacity-60' : 'cursor-pointer'}`}
+        >
+          {importing ? 'Importing…' : 'Import images…'}
+          <input
+            type="file"
+            multiple
+            accept={IMAGE_ACCEPT}
+            aria-label="Import images from files"
+            className="sr-only"
+            disabled={importing}
+            onChange={(event) => {
+              const files = [...(event.target.files ?? [])];
+              event.target.value = '';
+              void importFiles(files);
+            }}
+          />
+        </label>
+        <span className="text-caption text-muted">
+          or paste an image anywhere on this page (Ctrl/⌘+V).
+        </span>
+      </div>
       {images.length === 0 ? (
         <EmptyState
           title="No images yet."
